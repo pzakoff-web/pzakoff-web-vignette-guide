@@ -8,7 +8,7 @@ import { fetchRoute, placeFromParam, placeToParam, resolvePlace, type Place, typ
 import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
 import { addDays, iso } from "@/lib/dates";
-import { T, countryPath, eurApprox, eurTotal, fmtDate, money, type Dict, type Lang } from "@/lib/i18n";
+import { T, countryPath, eurApprox, eurRange, eurTotal, fmtDate, money, type Dict, type Lang } from "@/lib/i18n";
 import type { EuroClass, Powertrain, Vehicle, VehicleKind } from "@/data/types";
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="map map-loading" /> });
@@ -203,8 +203,18 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
               </p>
             </div>
             <div className="total">
-              <span>{t.totalLabel}{result.partial ? t.totalPartial : ""}</span>
-              <b>≈ {eurTotal(result.totalEur, lang)}</b>
+              {result.tollHighEur > 0 ? (
+                <>
+                  <span>{t.totalWithTolls}{result.partial ? t.totalPartial : ""}</span>
+                  <b>≈ {eurRange(result.totalEur + result.tollLowEur, result.totalEur + result.tollHighEur, lang)}</b>
+                  <span className="total-split">{t.fixedPart(eurTotal(result.totalEur, lang))} · {t.tollPart(`≈ ${eurRange(result.tollLowEur, result.tollHighEur, lang)}`)}</span>
+                </>
+              ) : (
+                <>
+                  <span>{t.totalLabel}{result.partial ? t.totalPartial : ""}</span>
+                  <b>≈ {eurTotal(result.totalEur, lang)}</b>
+                </>
+              )}
             </div>
           </div>
           <div className="share-row">
@@ -274,9 +284,22 @@ function PlanCard({ p, roundTrip, lang, t }: { p: CountryPlan; roundTrip: boolea
         </div>
       ))}
 
+      {p.distance && c?.distanceToll && (
+        <div className="dist">
+          <div className="dist-row">
+            <span>{t.distLine(Math.round(p.distance.km))}{p.distance.trips > 1 ? t.distBoth : ""}</span>
+            <span className="price">{p.distance.currency === "EUR" ? `≈ ${eurRange(p.distance.low, p.distance.high, lang)}` : `≈ ${Math.floor(p.distance.low)}–${money(Math.ceil(p.distance.high), p.distance.currency, lang)}`}
+              {p.distance.currency !== "EUR" && <em> ≈ {eurRange(p.distance.lowEur, p.distance.highEur, lang)}</em>}</span>
+          </div>
+          <details className="how">
+            <summary>{t.distHow} · {t.q[c.distanceToll.quality]}</summary>
+            <p>{c.distanceToll.basis}</p>
+          </details>
+        </div>
+      )}
       {c?.system === "toll" && c.tollInfo && (
         <div className="tollinfo">
-          <p>{t.tollPrefix} {c.tollInfo[0]}</p>
+          <p>{c.distanceToll ? `${t.tollPrefix} ${c.tollInfo[0]}` : t.distNoEstimate}</p>
           <a href={c.official[c.official.length - 1]?.url || c.official[0]?.url} target="_blank" rel="noopener">{t.officialCalc}</a>
         </div>
       )}

@@ -58,6 +58,33 @@ export interface TripInput {
   lang?: "bg" | "en";
 }
 
+export interface DistancePlan { km: number; lowEur: number; highEur: number; low: number; high: number; currency: string; trips: number }
+
+/**
+ * Километри по платени магистрали във всяка държава. Броим точка по точка по линията
+ * на всяка стъпка — една стъпка може да започва в една държава и да свършва в друга.
+ */
+export function tollKmByCountry(r: RouteResult): Map<string, number> {
+  const out = new Map<string, number>();
+  const res = new Map<string, RegExp>();
+  let hint: string | null = null;
+  for (const st of r.steps || []) {
+    const refs = st.ref.split(/;\s*/).map(x => x.trim());
+    for (let i = 1; i < st.coords.length; i++) {
+      const [lon1, lat1] = st.coords[i - 1], [lon2, lat2] = st.coords[i];
+      const iso = countryAt((lon1 + lon2) / 2, (lat1 + lat2) / 2, hint);
+      if (!iso) continue;
+      hint = iso;
+      const dt = byNumeric.get(iso)?.distanceToll;
+      if (!dt) continue;
+      let re = res.get(iso);
+      if (!re) { re = new RegExp(dt.refPattern); res.set(iso, re); }
+      if (refs.some(x => re!.test(x))) out.set(iso, (out.get(iso) || 0) + distanceKm(lat1, lon1, lat2, lon2));
+    }
+  }
+  return out;
+}
+
 export interface CountryPlan {
   iso: string;
   country?: Country;
@@ -67,6 +94,7 @@ export interface CountryPlan {
   cover: Cover | null;          // най-евтината комбинация
   unknownPrice: boolean;        // има винетка, но не знаем цената за този вид МПС
   tolls: SectionToll[];
+  distance?: DistancePlan;      // ориентировъчна такса по километър
   eur: (amount: number) => number | null;
 }
 
@@ -76,7 +104,7 @@ export function toEur(amount: number, currency: string): number | null {
   return r ? amount / r : null;
 }
 
-export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan[]; totalEur: number; partial: boolean; segments: Segment[] } {
+export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan[]; totalEur: number; tollLowEur: number; tollHighEur: number; partial: boolean; segments: Segment[] } {
   const segs = segmentsOf(r);
   const totalSec = r.cumSec[r.cumSec.length - 1];
   const dateMap = new Map<string, Set<string>>();
@@ -103,7 +131,8 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
   const tolls = sectionTollsOn(r, countries);
   const trips = input.returnDate ? 2 : 1;
 
-  let totalEur = 0, partial = false;
+  let totalEur = 0, partial = false, tollLowEur = 0, tollHighEur = 0;
+  const tollKm = tollKmByCountry(r);
   const plans: CountryPlan[] = order.map(iso => {
     const c0 = byNumeric.get(iso);
     const c = c0 ? localize(c0, input.lang || "bg") : undefined;
@@ -116,19 +145,31 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
       if (!cover) unknownPrice = c.products.every(p => p.price(input.vehicle) == null) && !(c.code === "CZ" && input.vehicle.kind === "moto");
       if (cover) { const e = eur(cover.total); if (e == null) partial = true; else totalEur += e; }
       else if (unknownPrice) partial = true;
-    } else if (!c || c.system === "toll") partial = partial || c?.system === "toll";
+    }
     const myTolls = tolls.filter(t => c0?.sectionTolls?.includes(t));
     for (const t of myTolls) {
       const p = input.vehicle.kind === "moto" ? t.priceMoto ?? t.priceCar : t.priceCar;
       const e = p == null ? null : eur(p * trips);
       if (e == null) partial = true; else totalEur += e;
     }
+    // такса по километър
+    let distance: DistancePlan | undefined;
+    const dt = c0?.distanceToll, km0 = tollKm.get(iso) || 0;
+    if (dt && km0 >= 1) {
+      const base = km0 * dt.ratePerKm * trips;
+      const lo = base * dt.low, hi = base * dt.high;
+      const loE = toEur(lo, dt.currency), hiE = toEur(hi, dt.currency);
+      if (loE != null && hiE != null) { tollLowEur += loE; tollHighEur += hiE; }
+      distance = { km: km0, low: lo, high: hi, lowEur: loE ?? 0, highEur: hiE ?? 0, currency: dt.currency, trips };
+    } else if (c0?.system === "toll" && !dt) {
+      partial = true; // платени пътища без наша оценка (напр. Франция)
+    }
     const name = c?.name || ((input.lang || "bg") === "en" ? OTHER_COUNTRY_NAMES_EN[iso] : OTHER_COUNTRY_NAMES[iso]) || "";
     // секционните такси — със същите id, но с преведени имена
     const lTolls = myTolls.map(t => c?.sectionTolls?.find(x => x.id === t.id) || t);
-    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, eur };
+    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, distance, eur };
   });
-  return { plans, totalEur, partial, segments: segs };
+  return { plans, totalEur, tollLowEur, tollHighEur, partial, segments: segs };
 }
 
 export { COUNTRIES };

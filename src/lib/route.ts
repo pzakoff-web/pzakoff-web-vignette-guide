@@ -43,7 +43,10 @@ export async function searchPlaces(q: string, signal?: AbortSignal, lang: "bg" |
     .slice(0, 6);
 }
 
+export interface RouteStep { coords: [number, number][]; ref: string }
+
 export interface RouteResult {
+  steps: RouteStep[];          // стъпки с номер на пътя — за таксите по километър
   coords: [number, number][];  // [lon, lat]
   cumSec: number[];            // кумулативно време до всяка точка
   cumKm: number[];
@@ -53,7 +56,7 @@ export interface RouteResult {
 
 export async function fetchRoute(points: Place[], signal?: AbortSignal): Promise<RouteResult> {
   const path = points.map(p => `${p.lon},${p.lat}`).join(";");
-  const url = `${ROUTER_URL}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=duration,distance`;
+  const url = `${ROUTER_URL}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=duration,distance&steps=true`;
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error("ROUTE_FAIL");
   const j = await r.json();
@@ -67,7 +70,11 @@ export async function fetchRoute(points: Place[], signal?: AbortSignal): Promise
     cumSec.push(cumSec[i] + (durs[i] ?? 0));
     cumKm.push(cumKm[i] + (dists[i] ?? 0) / 1000);
   }
-  return { coords, cumSec, cumKm, distanceKm: route.distance / 1000, durationH: route.duration / 3600 };
+  type S = { distance: number; ref?: string; geometry: { coordinates: [number, number][] } };
+  const steps: RouteStep[] = route.legs.flatMap((l: { steps: S[] }) => l.steps)
+    .filter((st: S) => st.distance > 0 && st.ref)
+    .map((st: S) => ({ coords: st.geometry.coordinates, ref: st.ref || "" }));
+  return { coords, cumSec, cumKm, steps, distanceKm: route.distance / 1000, durationH: route.duration / 3600 };
 }
 
 // ── Състоянието на пътуването в адреса (за „назад“ и за споделяне) ──

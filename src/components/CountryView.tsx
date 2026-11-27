@@ -56,6 +56,15 @@ export function CountryView({ country, lang }: { country: Country; lang: Lang })
         </>
       ) : null}
       {c.tollInfo?.length ? (<><h2>{t.howToPay}</h2><ul>{c.tollInfo.map(x => <li key={x}>{x}</li>)}</ul></>) : null}
+      {c.distanceToll ? (
+        <>
+          <h2>{t.rateLabel}</h2>
+          <p><b>≈ {money(c.distanceToll.ratePerKm, c.distanceToll.currency, lang)}{t.perKm}</b>
+            {c.distanceToll.currency !== "EUR" && <span className="muted"> {eurApprox(toEur(c.distanceToll.ratePerKm, c.distanceToll.currency), lang)}{t.perKm}</span>}
+            <span className="muted small"> · {t.q[c.distanceToll.quality]}</span></p>
+          <p className="small muted">{c.distanceToll.basis}</p>
+        </>
+      ) : null}
       {c.traps.length > 0 && (<><h2>{t.traps}</h2><ul className="trap-list">{c.traps.map(x => <li key={x}>{x}</li>)}</ul></>)}
       {c.facts.length > 0 && (<><h2>{t.useful}</h2><ul>{c.facts.map(x => <li key={x}>{x}</li>)}</ul></>)}
 

@@ -267,6 +267,9 @@ const hr = toll({
   scope: "Магистралите — такса според изминатия участък, плаща се на пункт.",
   official: [{ label: "HAC — тарифи", url: "https://www.hac.hr/en/toll/toll-rates" }, { label: "HAC — карта и калкулатор", url: "https://karta.hac.hr" }],
   tollInfo: ["Колата е категория I. Плащане в брой, с карта или с ENC устройство (15 €).", "Пример: A1 Загреб–Сплит 26,40 €; Загреб–Риека 10,10 €."],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.07, currency: "EUR", low: 0.85, high: 1.15, quality: "derived",
+    basis: "Изведено от официалните цени на HAC: A1 Загреб–Сплит 26,40 € (~380 km), Загреб–Риека 10,10 €.",
+    sources: ["https://www.hac.hr/en/toll/toll-rates/a1"] },
   traps: [], facts: [], sources: ["https://www.hac.hr/en/toll/toll-rates/a1", "https://www.hac.hr/en/toll/faq"],
   checkedAt: "2026-11-26", status: "partial",
 });
@@ -275,6 +278,9 @@ const rs = toll({
   scope: "Магистралите — такса според участъка, на пункт или с ENP таг.",
   official: [{ label: "Putevi Srbije — ценоразпис и калкулатор", url: "https://www.putevi-srbije.rs/index.php/категоризација-возила-ценовник-путарине" }],
   tollInfo: ["Колата е категория I. Ценоразписът е в сила от 1.7.2026.", "Калкулаторът на официалния сайт показва цената между два пункта в RSD и EUR."],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.045, currency: "EUR", low: 0.65, high: 1.25, quality: "secondary",
+    basis: "По вторични източници: Белград–Прешево 2 060 RSD (~18 €, ~400 km). Официалният ценоразпис е само като изображение.",
+    sources: ["https://www.putevi-srbije.rs/index.php/en/kategorizacija-vozila-cenovnik-putarine-2"] },
   traps: [], facts: [], sources: ["https://www.putevi-srbije.rs"], checkedAt: "2026-11-26", status: "partial",
 });
 const mk = toll({
@@ -282,6 +288,9 @@ const mk = toll({
   scope: "Отделни пунктове по магистралите.",
   official: [{ label: "Държавни пътища — цени по пунктове", url: "https://roads.org.mk/patarini/cenovnik-po-delnici/" }],
   tollInfo: ["Колата е категория IB. Плащане в денари, евро или с карта.", "Пунктове (кола, €): Романовци 1,00 · Петровец 1,00 · Миладиновци 1,00 · Тетово 0,50 · Сопот 1,50 · Демир Капия 1,50 · Гевгелия 2,00."],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.04, currency: "EUR", low: 0.7, high: 1.3, quality: "derived",
+    basis: "Изведено от официалните цени по пунктове (0,50–2,00 € на пункт); разпределението по отсечки е приблизително.",
+    sources: ["https://roads.org.mk/patarini/cenovnik-po-delnici/"] },
   traps: [], facts: [], sources: ["https://roads.org.mk/patarini/cenovnik-po-delnici/", "https://roads.org.mk/patarini/nachin-na-plakjanje/"],
   checkedAt: "2026-11-26", status: "partial",
 });
@@ -298,17 +307,23 @@ const gr = toll({
     "Nea Odos (Атина–Ламия): Афидне 3,90 · Тива 4,55 · Трагана 4,55 €.",
     "Егнатия Одос се управлява от нов концесионер от 31.12.2025.",
   ],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.058, currency: "EUR", low: 0.7, high: 1.2, quality: "derived",
+    basis: "Изведено от официалните цени на Olympia Odos и Nea Odos (Атина–Патра, Атина–Ламия, ~0,05–0,06 €/km). За Егнатия Одос нямаме цени.",
+    sources: ["https://www.olympiaodos.gr/Diodia-OLYMPIA-PASS/Times-diodion/", "https://www.neaodos.gr/highways/tolls/"] },
   traps: [], facts: [], sources: ["https://www.olympiaodos.gr/Diodia-OLYMPIA-PASS/Times-diodion/", "https://www.neaodos.gr/highways/tolls/", "https://egnatia.eu"],
   checkedAt: "2026-11-26", status: "partial",
 });
 const tr = toll({
-  code: "TR", isoNumeric: "792", slug: "turtsiya", name: "Турция", nameEn: "Turkey", flag: "🇹🇷", currency: "EUR",
-  scope: "Магистрали и мостове — само електронно (HGS), без каси.",
+  code: "TR", isoNumeric: "792", slug: "turtsiya", name: "Турция", nameEn: "Turkey", flag: "🇹🇷", currency: "TRY",
+  scope: "Магистрали (O-) и мостове — само електронно (HGS), без каси.",
   official: [{ label: "KGM — пътна агенция", url: "https://www.kgm.gov.tr" }, { label: "KGM — калкулатор", url: "https://vatandas.kgm.gov.tr/Toll" }],
   tollInfo: [
     "Нужна е HGS сметка с баланс. Открива се на граничния пункт, в PTT или в банка.",
     "Неплатено преминаване — 15 дни за плащане, иначе може да ви върнат на границата при излизане.",
   ],
+  distanceToll: { refPattern: "^O-?\\d", ratePerKm: 0.79, currency: "TRY", low: 0.8, high: 1.3, quality: "official",
+    basis: "Официална тарифа на KGM от 1.1.2026: Одрин–Махмутбей (211,9 km) 168 TL за кола. Мостовете в Истанбул — отделно (59 TL).",
+    sources: ["https://www.kgm.gov.tr/Sayfalar/KGM/SiteTr/Otoyollar/UcretlerYeni.aspx"] },
   traps: ["Без HGS не можете да платите на място — купете я на влизане в страната."],
   facts: [], sources: ["https://www.kgm.gov.tr"], checkedAt: "2026-11-26", status: "partial",
 });
@@ -317,6 +332,9 @@ const it = toll({
   scope: "Повечето магистрали — талон на входа, плащане на изхода.",
   official: [{ label: "Autostrade per l'Italia", url: "https://www.autostrade.it" }],
   tollInfo: ["Бели ленти — в брой; сини — карта/Viacard; жълти — Telepass и други устройства."],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.075, currency: "EUR", low: 0.8, high: 1.35, quality: "secondary",
+    basis: "По вторични източници: 0,05–0,12 €/km според участъка; поскъпване от 1,5% от 1.1.2026.",
+    sources: ["https://www.ayvens.com/it-it/blog/conducenti/costo-autostrada/"] },
   traps: ["Не влизайте в жълтата лента „Telepass“ без устройство."],
   facts: [], sources: ["https://www.autostrade.it/it/servizi-al-cliente/pedaggio/metodi-di-pagamento/telepedaggio"], checkedAt: "2026-11-26", status: "partial",
 });
@@ -331,6 +349,9 @@ const pt = toll({
   scope: "Магистрали с бариери и участъци само с електронно плащане.",
   official: [{ label: "Infraestruturas de Portugal — тол за чужди коли", url: "https://www.pttolls.com/" }, { label: "Калкулатор", url: "https://portagens.infraestruturasdeportugal.pt/" }],
   tollInfo: ["За електронните участъци чуждите коли трябва да регистрират начин на плащане: EasyToll (1 € + 0,32 €/пътуване, 30 дни), Tollcard или Via Verde."],
+  distanceToll: { refPattern: "^[AАΑ]\\d", ratePerKm: 0.09, currency: "EUR", low: 0.85, high: 1.15, quality: "derived",
+    basis: "Изведено от цените за 2026: A1 Лисабон–Порто 25,05 € (~300 km), A2 Лисабон–Алгарве 23,80 € (~240 km). Плюс таксите на EasyToll при електронните участъци.",
+    sources: ["https://www.rtp.pt/noticias/economia/portagens-sobem-45-centimos-entre-lisboa-e-porto-e-50-centimos-entre-lisboa-e-algarve_n1707053", "https://www.imt-ip.pt/rodoviario/infraestruturas-rodoviarias/rede-rodoviaria/taxas-de-portagem/"] },
   traps: [], facts: [], sources: ["https://www.pttolls.com/"], checkedAt: "2026-11-26", status: "partial",
 });
 const de = toll({

@@ -83,7 +83,31 @@ describe("английски текстове", () => {
       for (const t of c.sectionTolls || []) expect(e.sectionTolls?.[t.id]?.name, c.code + " " + t.id).toBeTruthy();
       if (c.statusNote) expect(e.statusNote, c.code + " statusNote").toBeTruthy();
       if (c.pricesValidFor) expect(e.pricesValidFor, c.code + " pricesValidFor").toBeTruthy();
+      if (c.distanceToll) expect(e.distanceBasis, c.code + " distanceBasis").toBeTruthy();
       for (const p of c.products || []) if (p.note) expect(e.products?.[p.id]?.note, c.code + " note " + p.id).toBeTruthy();
     }
+  });
+});
+
+describe("такси по километър", () => {
+  it("брои само номерата на магистралите, по държави", async () => {
+    const { loadBorders } = await import("./geo");
+    const { tollKmByCountry } = await import("./trip");
+    await loadBorders();
+    // всяка стъпка: отсечка ~0,1° (≈ 8–11 km) около дадена точка
+    const seg = (lon: number, lat: number, ref: string) => ({ ref, coords: [[lon, lat], [lon + 0.1, lat]] as [number, number][] });
+    const r = { coords: [], cumSec: [], cumKm: [], distanceKm: 0, durationH: 0, steps: [
+      seg(15.9, 45.8, "A3; E 70"),   // Хърватия
+      seg(15.9, 45.5, "D1"),         // Хърватия, не е магистрала
+      seg(20.4, 44.0, "A1; E 75"),   // Сърбия
+      seg(26.5, 41.68, "O-3"),       // Турция
+      seg(22.9, 40.6, "Α1"),         // Гърция — гръцко Α
+      seg(21.5, 41.9, "А1"),         // С. Македония — кирилско А
+      seg(11.5, 48.1, "A9"),         // Германия — няма такса
+    ] };
+    const m = tollKmByCountry(r as never);
+    for (const iso of ["191", "688", "792", "300", "807"]) expect(m.get(iso), iso).toBeGreaterThan(7);
+    expect(m.has("276")).toBe(false);
+    expect(m.get("191")!).toBeLessThan(10);
   });
 });

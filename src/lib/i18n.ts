@@ -24,6 +24,11 @@ export function money(n: number, cur: string, l: Lang): string {
   return `${num(n, l)} ${SYMBOL[cur] || cur}`;
 }
 export const eurApprox = (eur: number | null, l: Lang) => (eur == null ? "" : `≈ ${l === "bg" ? `${num(eur, l, 2)} €` : `€${num(eur, l, 2)}`}`);
+/** Диапазон в евро, закръглен до цяло: „140–155 €“ / „€140–155“. */
+export function eurRange(lo: number, hi: number, l: Lang): string {
+  const a = num(Math.floor(lo), l, 0), b = num(Math.ceil(hi), l, 0);
+  return l === "bg" ? `${a}–${b} €` : `€${a}–${b}`;
+}
 export const eurTotal = (eur: number, l: Lang) => (l === "bg" ? `${num(eur, l, 2)} €` : `€${num(eur, l, 2)}`);
 
 export const T = {
@@ -85,6 +90,13 @@ export const T = {
     czNote: "Цените в таблицата са за бензин/дизел. За CNG, plug-in хибриди и електромобили — вижте капаните по-долу.",
     sections: "Участъци с отделна такса", forCar: "за кола", howToPay: "Как се плаща", traps: "Внимавайте", useful: "Полезно",
     calcCta: "Изчисли винетките за моя маршрут", sources: "Източници", checkedOn: (d: string) => `Проверено на ${d}.`,
+    // такси по километър
+    distLine: (km: number) => `≈ ${km} km по платени магистрали`,
+    distEstimate: "ориентировъчно", distBoth: " · × 2 за отиване и връщане",
+    distHow: "Как е сметнато", distNoEstimate: "Платени магистрали — нямаме надеждна цена на километър. Ползвайте официалния калкулатор.",
+    totalWithTolls: "Общо с тол таксите", fixedPart: (a: string) => `винетки и фиксирани такси ${a}`, tollPart: (a: string) => `тол по км ${a}`,
+    q: { official: "официална тарифа", derived: "изведено от официални цени", secondary: "по вторични източници" } as Record<string, string>,
+    rateLabel: "Ориентировъчна цена на километър", perKm: "/km",
   },
   en: {
     siteTag: "Independent guide to European road vignettes and tolls",
@@ -142,6 +154,12 @@ export const T = {
     czNote: "Table prices are for petrol/diesel. For CNG, plug-in hybrids and electric cars, see the pitfalls below.",
     sections: "Sections with a separate toll", forCar: "for a car", howToPay: "How to pay", traps: "Watch out", useful: "Good to know",
     calcCta: "Calculate vignettes for my route", sources: "Sources", checkedOn: (d: string) => `Checked on ${d}.`,
+    distLine: (km: number) => `≈ ${km} km on tolled motorways`,
+    distEstimate: "estimate", distBoth: " · × 2 for both ways",
+    distHow: "How it's calculated", distNoEstimate: "Tolled motorways — we have no reliable per-km price. Use the official calculator.",
+    totalWithTolls: "Total incl. tolls", fixedPart: (a: string) => `vignettes and fixed tolls ${a}`, tollPart: (a: string) => `distance tolls ${a}`,
+    q: { official: "official tariff", derived: "derived from official prices", secondary: "from secondary sources" } as Record<string, string>,
+    rateLabel: "Estimated price per km", perKm: "/km",
   },
 };
 export type Dict = typeof T.bg;

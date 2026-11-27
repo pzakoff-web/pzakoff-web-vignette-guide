@@ -12,6 +12,7 @@ export interface CountryText {
   facts: string[];
   statusNote?: string;
   pricesValidFor?: string;
+  distanceBasis?: string;
 }
 
 export const EN: Record<string, CountryText> = {
@@ -157,6 +158,7 @@ export const EN: Record<string, CountryText> = {
     statusNote: "Prices are from the official site; check there exactly who must pay and on which roads.",
   },
   HR: {
+    distanceBasis: "Derived from HAC's official prices: A1 Zagreb–Split €26.40 (~380 km), Zagreb–Rijeka €10.10.",
     slug: "croatia",
     scope: "Motorways — toll by section driven, paid at toll plazas.",
     official: ["HAC — toll rates", "HAC — map and calculator"],
@@ -164,6 +166,7 @@ export const EN: Record<string, CountryText> = {
     traps: [], facts: [],
   },
   RS: {
+    distanceBasis: "From secondary sources: Belgrade–Preševo RSD 2,060 (~€18, ~400 km). The official tariff is published only as an image.",
     slug: "serbia",
     scope: "Motorways — toll by section, at plazas or with an ENP tag.",
     official: ["Putevi Srbije — tariffs and calculator"],
@@ -171,6 +174,7 @@ export const EN: Record<string, CountryText> = {
     traps: [], facts: [],
   },
   MK: {
+    distanceBasis: "Derived from official per-plaza prices (€0.50–2.00 per plaza); the split by section is approximate.",
     slug: "north-macedonia",
     scope: "Individual toll plazas on the motorways.",
     official: ["Public Enterprise for State Roads — prices by plaza"],
@@ -178,6 +182,7 @@ export const EN: Record<string, CountryText> = {
     traps: [], facts: [],
   },
   GR: {
+    distanceBasis: "Derived from official Olympia Odos and Nea Odos prices (Athens–Patras, Athens–Lamia, ~€0.05–0.06/km). We have no prices for Egnatia Odos.",
     slug: "greece",
     scope: "Motorways — toll plazas run by different concessionaires.",
     official: ["Olympia Odos — prices", "Nea Odos — prices", "Egnatia Odos"],
@@ -189,8 +194,9 @@ export const EN: Record<string, CountryText> = {
     traps: [], facts: [],
   },
   TR: {
+    distanceBasis: "Official KGM tariff from 1 Jan 2026: Edirne–Mahmutbey (211.9 km) 168 TL for a car. The Istanbul bridges are extra (59 TL).",
     slug: "turkey",
-    scope: "Motorways and bridges — electronic only (HGS), no cash booths.",
+    scope: "Motorways (O-) and bridges — electronic only (HGS), no cash booths.",
     official: ["KGM — highways agency", "KGM — calculator"],
     tollInfo: [
       "You need an HGS account with credit. Open it at the border crossing, at PTT or at a bank.",
@@ -200,6 +206,7 @@ export const EN: Record<string, CountryText> = {
     facts: [],
   },
   IT: {
+    distanceBasis: "From secondary sources: €0.05–0.12/km depending on the section; prices up 1.5% from 1 Jan 2026.",
     slug: "italy",
     scope: "Most motorways — ticket on entry, pay on exit.",
     official: ["Autostrade per l'Italia"],
@@ -216,6 +223,7 @@ export const EN: Record<string, CountryText> = {
     statusNote: "The official site was unavailable when we checked.",
   },
   PT: {
+    distanceBasis: "Derived from 2026 prices: A1 Lisbon–Porto €25.05 (~300 km), A2 Lisbon–Algarve €23.80 (~240 km). Plus EasyToll fees on electronic-only sections.",
     slug: "portugal",
     scope: "Motorways with barriers and electronic-only sections.",
     official: ["Infraestruturas de Portugal — tolls for foreign cars", "Calculator"],

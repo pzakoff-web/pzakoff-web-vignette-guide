@@ -1,6 +1,6 @@
 // Модел на данните. Всяка цена и правило имат източник и дата на проверка.
 
-export type Currency = "EUR" | "CZK" | "HUF" | "RON" | "CHF" | "DKK" | "NOK" | "MKD";
+export type Currency = "EUR" | "CZK" | "HUF" | "RON" | "CHF" | "DKK" | "NOK" | "MKD" | "TRY";
 
 export type VehicleKind = "car" | "moto" | "carTrailer";
 /** Задвижване / екокласа — влияе на цената в CZ и RO. */
@@ -49,6 +49,23 @@ export interface SectionToll {
   buyUrl: string;
 }
 
+/**
+ * Ориентировъчна такса по километър за платените магистрали.
+ * ratePerKm е изведена от официални цени за конкретни отсечки (basis); low/high — множители за диапазона,
+ * защото тарифите варират по участъци.
+ */
+export interface DistanceToll {
+  /** Регулярен израз за номера на пътя (ref в маршрута), напр. "^A\\d" за A1, A3… */
+  refPattern: string;
+  ratePerKm: number;
+  currency: Currency;
+  low: number;
+  high: number;
+  quality: "official" | "derived" | "secondary";
+  basis: string;      // откъде е цената (bg)
+  sources: string[];
+}
+
 export interface Link { label: string; url: string }
 
 export type Status = "verified" | "partial" | "unverified";
@@ -68,6 +85,7 @@ export interface Country {
   products?: Product[];
   sectionTolls?: SectionToll[];
   tollInfo?: string[];   // за държави с такса на километър
+  distanceToll?: DistanceToll;
   traps: string[];       // капани и чести грешки
   facts: string[];       // други полезни факти
   sources: string[];

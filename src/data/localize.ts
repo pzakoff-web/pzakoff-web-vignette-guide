@@ -23,6 +23,7 @@ export function localize(c: Country, lang: Lang): Country {
     facts: e.facts,
     statusNote: e.statusNote ?? c.statusNote,
     pricesValidFor: e.pricesValidFor ?? c.pricesValidFor,
+    distanceToll: c.distanceToll && { ...c.distanceToll, basis: e.distanceBasis ?? c.distanceToll.basis },
   };
   cache.set(key, out);
   return out;
