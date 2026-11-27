@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 
-export default function RouteMap({ coords }: { coords: [number, number][] }) {
+export default function RouteMap({ coords, via = [] }: { coords: [number, number][]; via?: [number, number][] }) {
   const el = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let map: import("leaflet").Map | null = null;
@@ -19,8 +19,9 @@ export default function RouteMap({ coords }: { coords: [number, number][] }) {
       setTimeout(() => { map?.invalidateSize(); map?.fitBounds(line.getBounds(), { padding: [20, 20] }); }, 100);
       const dot = (ll: [number, number]) => L.circleMarker([ll[1], ll[0]], { radius: 7, color: "#fff", weight: 2, fillColor: "#0f7a4a", fillOpacity: 1 }).addTo(map!);
       dot(coords[0]); dot(coords[coords.length - 1]);
+      for (const v of via) L.circleMarker([v[1], v[0]], { radius: 5, color: "#0f7a4a", weight: 2, fillColor: "#fff", fillOpacity: 1 }).addTo(map!);
     });
     return () => { cancelled = true; map?.remove(); };
-  }, [coords]);
+  }, [coords, via]);
   return <div ref={el} className="map" role="img" aria-label="Карта на маршрута" />;
 }

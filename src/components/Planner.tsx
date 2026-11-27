@@ -1,10 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { PlaceInput } from "./PlaceInput";
-import { fetchRoute, resolvePlace, type Place, type RouteResult } from "@/lib/route";
+import { fetchRoute, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
 import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
 import { addDays, fmt, iso } from "@/lib/dates";
@@ -15,11 +15,13 @@ const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () =
 
 const today = () => iso(new Date(Date.now() - new Date().getTimezoneOffset() * 60000));
 
+interface Stop { id: number; place: Place | null; text: string }
+let nextId = 1;
+const newStop = (place: Place | null = null): Stop => ({ id: nextId++, place, text: place?.label || "" });
+
 export default function Planner() {
-  const [from, setFrom] = useState<Place | null>(null);
-  const [to, setTo] = useState<Place | null>(null);
-  const [fromText, setFromText] = useState("");
-  const [toText, setToText] = useState("");
+  // stops[0] = откъде, последният = докъде, между тях — „през“
+  const [stops, setStops] = useState<Stop[]>(() => [newStop(), newStop()]);
   const [depart, setDepart] = useState(() => addDays(today(), 7));
   const [hour, setHour] = useState(6);
   const [roundTrip, setRoundTrip] = useState(true);
@@ -27,8 +29,10 @@ export default function Planner() {
   const [stay, setStay] = useState(false);
   const [vehicle, setVehicle] = useState<Vehicle>({ kind: "car", powertrain: "standard", euroClass: "euro6" });
   const [route, setRoute] = useState<RouteResult | null>(null);
+  const [routePlaces, setRoutePlaces] = useState<Place[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const restored = useRef(false);
 
   const result = useMemo(() => {
     if (!route) return null;
@@ -37,21 +41,28 @@ export default function Planner() {
     });
   }, [route, vehicle, depart, hour, roundTrip, ret, stay]);
 
-  const calculate = async () => {
-    if (roundTrip && ret < depart) { setError("Датата на връщане е преди тръгването."); return; }
-    if ((!from && !fromText.trim()) || (!to && !toText.trim())) { setError("Въведете откъде и докъде пътувате."); return; }
+  const viaCoords = useMemo(() => routePlaces.slice(1, -1).map(p => [p.lon, p.lat] as [number, number]), [routePlaces]);
+
+  const updateStop = (id: number, patch: Partial<Stop>) => setStops(ss => ss.map(s => (s.id === id ? { ...s, ...patch } : s)));
+  const addVia = () => setStops(ss => [...ss.slice(0, -1), newStop(), ss[ss.length - 1]]);
+  const removeStop = (id: number) => setStops(ss => (ss.length > 2 ? ss.filter(s => s.id !== id) : ss));
+  const swapEnds = () => setStops(ss => [ss[ss.length - 1], ...ss.slice(1, -1).reverse(), ss[0]]);
+
+  const run = async (list: Stop[], opts: { scroll: boolean }) => {
     setError(null); setBusy(true);
     try {
       // Ако не е избрано предложение, търсим написаното (разбира и „Мюнхен“, „Виена“…)
-      const a = from || await resolvePlace(fromText.trim());
-      const b = to || await resolvePlace(toText.trim());
-      if (!a) throw new Error(`Не намерихме „${fromText}“. Опитайте с по-точно име.`);
-      if (!b) throw new Error(`Не намерихме „${toText}“. Опитайте с по-точно име.`);
-      if (!from) setFrom(a);
-      if (!to) setTo(b);
-      const [r] = await Promise.all([fetchRoute(a, b), loadBorders()]);
+      const places: Place[] = [];
+      for (const s of list) {
+        const p = s.place || (s.text.trim() ? await resolvePlace(s.text.trim()) : null);
+        if (!p) throw new Error(`Не намерихме „${s.text}“. Опитайте с по-точно име.`);
+        places.push(p);
+      }
+      setStops(list.map((s, i) => (s.place ? s : { ...s, place: places[i], text: places[i].label })));
+      const [r] = await Promise.all([fetchRoute(places), loadBorders()]);
       setRoute(r);
-      setTimeout(() => document.getElementById("rezultat")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+      setRoutePlaces(places);
+      if (opts.scroll) setTimeout(() => document.getElementById("rezultat")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Нещо се обърка. Опитайте отново.");
     } finally {
@@ -59,14 +70,78 @@ export default function Planner() {
     }
   };
 
+  const calculate = () => {
+    if (roundTrip && ret < depart) { setError("Датата на връщане е преди тръгването."); return; }
+    const list = stops.filter((s, i) => i === 0 || i === stops.length - 1 || s.place || s.text.trim()); // празните „през“ се пропускат
+    if (!list[0].place && !list[0].text.trim()) { setError("Въведете откъде тръгвате."); return; }
+    if (!list[list.length - 1].place && !list[list.length - 1].text.trim()) { setError("Въведете докъде пътувате."); return; }
+    run(list, { scroll: true });
+  };
+
+  // Записва пътуването в адреса при всяка промяна: „назад“ от страница на държава го връща,
+  // а линкът може да се сподели.
+  useEffect(() => {
+    if (routePlaces.length < 2) return;
+    const q = new URLSearchParams();
+    routePlaces.forEach(p => q.append("s", placeToParam(p)));
+    q.set("d", depart); q.set("h", String(hour));
+    if (roundTrip) q.set("r", ret);
+    if (roundTrip && stay) q.set("stay", "1");
+    q.set("v", vehicle.kind); q.set("p", vehicle.powertrain); q.set("e", vehicle.euroClass);
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}?${q.toString()}#rezultat`);
+  }, [routePlaces, depart, hour, roundTrip, ret, stay, vehicle]);
+
+  // Възстановяване от адреса при отваряне / връщане назад
+  useEffect(() => {
+    if (restored.current) return;
+    restored.current = true;
+    const q = new URLSearchParams(window.location.search);
+    const places = q.getAll("s").map(placeFromParam).filter(Boolean) as Place[];
+    if (places.length < 2) return;
+    const list = places.map(p => newStop(p));
+    /* eslint-disable react-hooks/set-state-in-effect -- еднократно зареждане от адреса */
+    setStops(list);
+    if (q.get("d")) setDepart(q.get("d")!);
+    if (q.get("h")) setHour(Number(q.get("h")));
+    setRoundTrip(q.has("r"));
+    if (q.get("r")) setRet(q.get("r")!);
+    setStay(q.get("stay") === "1");
+    setVehicle({
+      kind: (q.get("v") as VehicleKind) || "car",
+      powertrain: (q.get("p") as Powertrain) || "standard",
+      euroClass: (q.get("e") as EuroClass) || "euro6",
+    });
+    /* eslint-enable react-hooks/set-state-in-effect */
+    run(list, { scroll: false });
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const setV = (p: Partial<Vehicle>) => setVehicle(v => ({ ...v, ...p }));
 
   return (
     <div className="planner">
       <form className="card form" onSubmit={e => { e.preventDefault(); calculate(); }}>
-        <div className="row2">
-          <PlaceInput label="Откъде" value={from} onChange={setFrom} onText={setFromText} placeholder="напр. София" />
-          <PlaceInput label="Докъде" value={to} onChange={setTo} onText={setToText} placeholder="напр. Мюнхен" />
+        <div className="stops">
+          {stops.map((s, i) => {
+            const first = i === 0, last = i === stops.length - 1;
+            return (
+              <div className={"stop" + (!first && !last ? " via" : "")} key={s.id}>
+                <span className={"dot" + (first ? " start" : last ? " end" : "")} aria-hidden />
+                <PlaceInput
+                  label={first ? "Откъде" : last ? "Докъде" : `През (${i})`}
+                  value={s.place}
+                  onChange={p => updateStop(s.id, { place: p })}
+                  onText={t => updateStop(s.id, { text: t })}
+                  placeholder={first ? "напр. София" : last ? "напр. Мюнхен" : "град по пътя, напр. Будапеща"}
+                />
+                {!first && !last && <button type="button" className="icon-btn" aria-label="Махни тази точка" onClick={() => removeStop(s.id)}>×</button>}
+              </div>
+            );
+          })}
+          <div className="stop-actions">
+            <button type="button" className="link" onClick={addVia}>+ Добави град по пътя</button>
+            <button type="button" className="link" onClick={swapEnds}>⇅ Размени посоката</button>
+          </div>
+          <p className="muted small hint">За да минете през определена държава, добавете град в нея — например Будапеща за Унгария или Белград за Сърбия.</p>
         </div>
         <div className="row4">
           <label className="fld"><span>Тръгване</span><input type="date" value={depart} min={today()} onChange={e => setDepart(e.target.value)} /></label>
@@ -115,7 +190,7 @@ export default function Planner() {
         <section id="rezultat" className="result">
           <div className="result-head">
             <div>
-              <h2>{from?.name} → {to?.name}</h2>
+              <h2>{routePlaces.map(p => p.name).join(" → ")}</h2>
               <p className="muted">
                 {Math.round(route.distanceKm)} km · около {Math.floor(route.durationH)} ч {Math.round((route.durationH % 1) * 60)} мин шофиране
                 {roundTrip ? ` · обратно на ${fmt(ret)}` : ""}
@@ -126,7 +201,15 @@ export default function Planner() {
               <b>≈ {result.totalEur.toLocaleString("bg-BG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b>
             </div>
           </div>
-          <RouteMap coords={route.coords} />
+          <div className="share-row">
+            <button type="button" className="link" onClick={() => {
+              const url = window.location.href;
+              if (navigator.share) navigator.share({ title: "Винетки за пътуването", url }).catch(() => {});
+              else navigator.clipboard?.writeText(url).then(() => alert("Линкът е копиран."));
+            }}>Сподели пътуването ↗</button>
+            <button type="button" className="link" onClick={() => document.querySelector(".form")?.scrollIntoView({ behavior: "smooth" })}>Промени маршрута ↑</button>
+          </div>
+          <RouteMap coords={route.coords} via={viaCoords} />
           <ol className="plans">
             {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} />)}
           </ol>

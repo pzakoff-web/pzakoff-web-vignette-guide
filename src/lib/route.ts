@@ -41,10 +41,11 @@ export interface RouteResult {
   durationH: number;
 }
 
-export async function fetchRoute(a: Place, b: Place, signal?: AbortSignal): Promise<RouteResult> {
-  const url = `${ROUTER_URL}/route/v1/driving/${a.lon},${a.lat};${b.lon},${b.lat}?overview=full&geometries=geojson&annotations=duration,distance`;
+export async function fetchRoute(points: Place[], signal?: AbortSignal): Promise<RouteResult> {
+  const path = points.map(p => `${p.lon},${p.lat}`).join(";");
+  const url = `${ROUTER_URL}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=duration,distance`;
   const r = await fetch(url, { signal });
-  if (!r.ok) throw new Error("Маршрутът не може да бъде изчислен в момента");
+  if (!r.ok) throw new Error("Маршрутът не може да бъде изчислен в момента. Опитайте след малко.");
   const j = await r.json();
   if (j.code !== "Ok" || !j.routes?.length) throw new Error("Не намерихме маршрут между тези места");
   const route = j.routes[0];
@@ -52,6 +53,19 @@ export async function fetchRoute(a: Place, b: Place, signal?: AbortSignal): Prom
   const durs: number[] = route.legs.flatMap((l: { annotation: { duration: number[] } }) => l.annotation.duration);
   const dists: number[] = route.legs.flatMap((l: { annotation: { distance: number[] } }) => l.annotation.distance);
   const cumSec = [0], cumKm = [0];
-  for (let i = 0; i < durs.length; i++) { cumSec.push(cumSec[i] + durs[i]); cumKm.push(cumKm[i] + dists[i] / 1000); }
+  for (let i = 0; i < coords.length - 1; i++) {
+    cumSec.push(cumSec[i] + (durs[i] ?? 0));
+    cumKm.push(cumKm[i] + (dists[i] ?? 0) / 1000);
+  }
   return { coords, cumSec, cumKm, distanceKm: route.distance / 1000, durationH: route.duration / 3600 };
+}
+
+// ── Състоянието на пътуването в адреса (за „назад“ и за споделяне) ──
+
+export const placeToParam = (p: Place) => [p.lat.toFixed(5), p.lon.toFixed(5), p.name, p.label].join("~");
+export function placeFromParam(s: string): Place | null {
+  const [lat, lon, name, ...rest] = s.split("~");
+  const la = Number(lat), lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo) || !name) return null;
+  return { lat: la, lon: lo, name, label: rest.join("~") || name };
 }

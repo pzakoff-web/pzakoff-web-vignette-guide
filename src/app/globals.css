@@ -132,3 +132,16 @@ input:disabled { opacity: .5; }
 @media (max-width: 480px) {
   .row2 { grid-template-columns: 1fr; }
 }
+
+/* Точки на маршрута */
+.stops { display: grid; gap: 8px; }
+.stop { display: grid; grid-template-columns: 14px minmax(0, 1fr) 36px; gap: 10px; align-items: end; }
+.stop .dot { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--accent); background: var(--surface); margin-bottom: 15px; }
+.stop .dot.start, .stop .dot.end { background: var(--accent); }
+.stop.via .dot { width: 9px; height: 9px; margin-left: 1.5px; }
+.icon-btn { width: 36px; height: 42px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 10px; font-size: 20px; cursor: pointer; }
+.icon-btn:hover { color: var(--warn); border-color: var(--warn); }
+.stop-actions { display: flex; gap: 14px; flex-wrap: wrap; padding-left: 24px; }
+.link { border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px 0; }
+.hint { margin: 0; padding-left: 24px; }
+.share-row { display: flex; gap: 16px; flex-wrap: wrap; margin: -4px 0 10px; }
