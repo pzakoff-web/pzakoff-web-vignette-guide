@@ -179,7 +179,9 @@ export default function Planner() {
             </select>
           </label>
           {roundTrip && (
-            <label className="chk"><input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> Ще карам по магистрали и на място</label>
+            <label className="chk" title="Ако по време на престоя ще пътувате по магистралите (напр. до пистите), винетката трябва да покрива всички дни, не само пристигането и тръгването.">
+              <input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> Ще ползвам магистралите и през престоя{(stops[stops.length - 1].place?.label.split(", ").pop()) ? ` в ${stops[stops.length - 1].place!.label.split(", ").pop()}` : " на крайната точка"}
+            </label>
           )}
         </div>
         {error && <p className="err" role="alert">{error}</p>}
