@@ -1,5 +1,6 @@
 // Обобщение за AI агенти: официални сайтове и цени с дата на проверка.
 import { COUNTRIES } from "@/data/countries";
+import { EN } from "@/data/countries.en";
 import type { Vehicle } from "@/data/types";
 import { SITE } from "@/lib/site";
 export const dynamic = "force-static";
@@ -11,7 +12,7 @@ export function GET() {
     for (const l of c.official) lines.push(`- Official: ${l.url}`);
     for (const p of c.products || []) { const v = p.price(CAR); if (v != null) lines.push(`- Car, ${p.id}: ${v} ${c.currency}`); }
     for (const t of c.sectionTolls || []) if (t.priceCar != null) lines.push(`- Section toll ${t.road}: ${t.priceCar} ${c.currency}`);
-    lines.push(`- Details: ${SITE.url}/${c.slug}/`, "");
+    lines.push(`- Details: ${SITE.url}/en/${EN[c.code].slug}/ (Bulgarian: ${SITE.url}/${c.slug}/)`, "");
   }
   return new Response(lines.join("\n"), { headers: { "content-type": "text/plain; charset=utf-8" } });
 }

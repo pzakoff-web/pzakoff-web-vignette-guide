@@ -54,6 +54,8 @@ a:hover { text-decoration-color: var(--ink); }
 .site-head nav { display: flex; gap: 28px; }
 .site-head nav a { color: var(--muted); text-decoration: none; font-size: 14.5px; }
 .site-head nav a:hover { color: var(--ink); }
+.site-head nav .lang { color: var(--ink); border: 1px solid var(--line-2); border-radius: 999px; padding: 3px 12px; font-size: 13.5px; }
+.site-head nav .lang:hover { border-color: var(--ink); }
 .site-foot { margin-top: 96px; padding: 32px 0 48px; border-top: 1px solid var(--line); }
 .site-foot p { margin: 6px 0; max-width: 680px; color: var(--ink-2); }
 .site-foot a { color: var(--muted); }
@@ -210,7 +212,7 @@ input[type="checkbox"] { appearance: auto; -webkit-appearance: auto; width: 18px
   .row4 .chk { grid-column: 1 / -1; height: auto; }
   .total { text-align: left; }
   .map { height: 260px; }
-  .site-head nav { display: none; }
+  .site-head nav a:not(.lang) { display: none; }
   .buy { grid-template-columns: minmax(0, 1fr); }
   .block { margin-top: 72px; }
 }

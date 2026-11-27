@@ -1,5 +1,7 @@
 // От маршрут + дати → кои държави, в кои дни, коя винетка и колко струва.
 import { COUNTRIES, OTHER_COUNTRY_NAMES, byNumeric } from "@/data/countries";
+import { OTHER_COUNTRY_NAMES_EN } from "@/data/countries.en";
+import { localize } from "@/data/localize";
 import type { Country, SectionToll, Vehicle } from "@/data/types";
 import rates from "@/data/rates.json";
 import { cheapestCover, type Cover } from "./cover";
@@ -53,6 +55,7 @@ export interface TripInput {
   returnDate?: string;
   stayDriving: boolean; // кара по платени пътища и в държавата на престоя
   today: string;
+  lang?: "bg" | "en";
 }
 
 export interface CountryPlan {
@@ -102,7 +105,8 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
 
   let totalEur = 0, partial = false;
   const plans: CountryPlan[] = order.map(iso => {
-    const c = byNumeric.get(iso);
+    const c0 = byNumeric.get(iso);
+    const c = c0 ? localize(c0, input.lang || "bg") : undefined;
     const km = segs.filter(s => s.iso === iso).reduce((a, s) => a + s.km, 0);
     const dates = [...(dateMap.get(iso) || [])].sort();
     const eur = (amount: number) => toEur(amount, c?.currency || "EUR");
@@ -113,13 +117,16 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
       if (cover) { const e = eur(cover.total); if (e == null) partial = true; else totalEur += e; }
       else if (unknownPrice) partial = true;
     } else if (!c || c.system === "toll") partial = partial || c?.system === "toll";
-    const myTolls = tolls.filter(t => c?.sectionTolls?.includes(t));
+    const myTolls = tolls.filter(t => c0?.sectionTolls?.includes(t));
     for (const t of myTolls) {
       const p = input.vehicle.kind === "moto" ? t.priceMoto ?? t.priceCar : t.priceCar;
       const e = p == null ? null : eur(p * trips);
       if (e == null) partial = true; else totalEur += e;
     }
-    return { iso, country: c, name: c?.name || OTHER_COUNTRY_NAMES[iso] || "Друга държава", km, dates, cover, unknownPrice, tolls: myTolls, eur };
+    const name = c?.name || ((input.lang || "bg") === "en" ? OTHER_COUNTRY_NAMES_EN[iso] : OTHER_COUNTRY_NAMES[iso]) || "";
+    // секционните такси — със същите id, но с преведени имена
+    const lTolls = myTolls.map(t => c?.sectionTolls?.find(x => x.id === t.id) || t);
+    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, eur };
   });
   return { plans, totalEur, partial, segments: segs };
 }

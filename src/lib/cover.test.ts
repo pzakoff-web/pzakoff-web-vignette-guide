@@ -68,3 +68,22 @@ describe("dateAt", () => {
     expect(dateAt("2026-12-20", 20, 5 * 3600)).toBe("2026-12-21");
   });
 });
+
+describe("английски текстове", () => {
+  it("всяка държава има превод и масивите са със същата дължина", async () => {
+    const { EN } = await import("@/data/countries.en");
+    for (const c of COUNTRIES) {
+      const e = EN[c.code];
+      expect(e, c.code).toBeDefined();
+      expect(e.traps.length, c.code + " traps").toBe(c.traps.length);
+      expect(e.facts.length, c.code + " facts").toBe(c.facts.length);
+      expect(e.official.length, c.code + " official").toBe(c.official.length);
+      expect((e.tollInfo || []).length, c.code + " tollInfo").toBe((c.tollInfo || []).length);
+      for (const p of c.products || []) expect(e.products?.[p.id]?.label, c.code + " " + p.id).toBeTruthy();
+      for (const t of c.sectionTolls || []) expect(e.sectionTolls?.[t.id]?.name, c.code + " " + t.id).toBeTruthy();
+      if (c.statusNote) expect(e.statusNote, c.code + " statusNote").toBeTruthy();
+      if (c.pricesValidFor) expect(e.pricesValidFor, c.code + " pricesValidFor").toBeTruthy();
+      for (const p of c.products || []) if (p.note) expect(e.products?.[p.id]?.note, c.code + " note " + p.id).toBeTruthy();
+    }
+  });
+});

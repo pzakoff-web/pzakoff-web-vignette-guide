@@ -7,8 +7,8 @@ import { PlaceInput } from "./PlaceInput";
 import { fetchRoute, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
 import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
-import { addDays, fmt, iso } from "@/lib/dates";
-import { eurApprox, money } from "@/lib/money";
+import { addDays, iso } from "@/lib/dates";
+import { T, countryPath, eurApprox, eurTotal, fmtDate, money, type Dict, type Lang } from "@/lib/i18n";
 import type { EuroClass, Powertrain, Vehicle, VehicleKind } from "@/data/types";
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="map map-loading" /> });
@@ -19,7 +19,9 @@ interface Stop { id: number; place: Place | null; text: string }
 let nextId = 1;
 const newStop = (place: Place | null = null): Stop => ({ id: nextId++, place, text: place?.label || "" });
 
-export default function Planner() {
+export default function Planner({ lang = "bg" }: { lang?: Lang }) {
+  const t = T[lang];
+  const fmt = (s: string) => fmtDate(s, lang);
   // stops[0] = откъде, последният = докъде, между тях — „през“
   const [stops, setStops] = useState<Stop[]>(() => [newStop(), newStop()]);
   const [depart, setDepart] = useState(() => addDays(today(), 7));
@@ -37,9 +39,9 @@ export default function Planner() {
   const result = useMemo(() => {
     if (!route) return null;
     return planTrip(route, {
-      vehicle, departDate: depart, departHour: hour, returnDate: roundTrip ? ret : undefined, stayDriving: roundTrip && stay, today: today(),
+      vehicle, departDate: depart, departHour: hour, returnDate: roundTrip ? ret : undefined, stayDriving: roundTrip && stay, today: today(), lang,
     });
-  }, [route, vehicle, depart, hour, roundTrip, ret, stay]);
+  }, [route, vehicle, depart, hour, roundTrip, ret, stay, lang]);
 
   const viaCoords = useMemo(() => routePlaces.slice(1, -1).map(p => [p.lon, p.lat] as [number, number]), [routePlaces]);
 
@@ -54,8 +56,8 @@ export default function Planner() {
       // Ако не е избрано предложение, търсим написаното (разбира и „Мюнхен“, „Виена“…)
       const places: Place[] = [];
       for (const s of list) {
-        const p = s.place || (s.text.trim() ? await resolvePlace(s.text.trim()) : null);
-        if (!p) throw new Error(`Не намерихме „${s.text}“. Опитайте с по-точно име.`);
+        const p = s.place || (s.text.trim() ? await resolvePlace(s.text.trim(), lang) : null);
+        if (!p) throw new Error(t.errNotFound(s.text));
         places.push(p);
       }
       setStops(list.map((s, i) => (s.place ? s : { ...s, place: places[i], text: places[i].label })));
@@ -64,17 +66,18 @@ export default function Planner() {
       setRoutePlaces(places);
       if (opts.scroll) setTimeout(() => document.getElementById("rezultat")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Нещо се обърка. Опитайте отново.");
+      const msg = e instanceof Error ? e.message : "";
+      setError(msg === "ROUTE_FAIL" ? t.errRoute : msg === "NO_ROUTE" ? t.errNoRoute : msg && !/^[A-Z_]+$/.test(msg) ? msg : t.errGeneric);
     } finally {
       setBusy(false);
     }
   };
 
   const calculate = () => {
-    if (roundTrip && ret < depart) { setError("Датата на връщане е преди тръгването."); return; }
+    if (roundTrip && ret < depart) { setError(t.errReturn); return; }
     const list = stops.filter((s, i) => i === 0 || i === stops.length - 1 || s.place || s.text.trim()); // празните „през“ се пропускат
-    if (!list[0].place && !list[0].text.trim()) { setError("Въведете откъде тръгвате."); return; }
-    if (!list[list.length - 1].place && !list[list.length - 1].text.trim()) { setError("Въведете докъде пътувате."); return; }
+    if (!list[0].place && !list[0].text.trim()) { setError(t.errFrom); return; }
+    if (!list[list.length - 1].place && !list[list.length - 1].text.trim()) { setError(t.errTo); return; }
     run(list, { scroll: true });
   };
 
@@ -127,65 +130,66 @@ export default function Planner() {
               <div className={"stop" + (!first && !last ? " via" : "")} key={s.id}>
                 <span className={"dot" + (first ? " start" : last ? " end" : "")} aria-hidden />
                 <PlaceInput
-                  label={first ? "Откъде" : last ? "Докъде" : `През (${i})`}
+                  label={first ? t.from : last ? t.to : t.via(i)}
                   value={s.place}
                   onChange={p => updateStop(s.id, { place: p })}
                   onText={t => updateStop(s.id, { text: t })}
-                  placeholder={first ? "напр. София" : last ? "напр. Мюнхен" : "град по пътя, напр. Будапеща"}
+                  placeholder={first ? t.fromPh : last ? t.toPh : t.viaPh}
+                  lang={lang}
                 />
-                {!first && !last && <button type="button" className="icon-btn" aria-label="Махни тази точка" onClick={() => removeStop(s.id)}>×</button>}
+                {!first && !last && <button type="button" className="icon-btn" aria-label={t.removeStop} onClick={() => removeStop(s.id)}>×</button>}
               </div>
             );
           })}
           <div className="stop-actions">
-            <button type="button" className="link" onClick={addVia}>+ Добави град по пътя</button>
-            <button type="button" className="link" onClick={swapEnds}>⇅ Размени посоката</button>
+            <button type="button" className="link" onClick={addVia}>{t.addVia}</button>
+            <button type="button" className="link" onClick={swapEnds}>{t.swap}</button>
           </div>
-          <p className="muted small hint">За да минете през определена държава, добавете град в нея — например Будапеща за Унгария или Белград за Сърбия.</p>
+          <p className="muted small hint">{t.viaHint}</p>
         </div>
         <div className="row4">
-          <label className="fld"><span>Тръгване</span><input type="date" value={depart} min={today()} onChange={e => setDepart(e.target.value)} /></label>
-          <label className="fld"><span>Час</span>
+          <label className="fld"><span>{t.depart}</span><input type="date" value={depart} min={today()} onChange={e => setDepart(e.target.value)} /></label>
+          <label className="fld"><span>{t.hour}</span>
             <select value={hour} onChange={e => setHour(Number(e.target.value))}>
               {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, "0")}:00</option>)}
             </select>
           </label>
-          <label className="fld"><span>Връщане</span>
+          <label className="fld"><span>{t.ret}</span>
             <input type="date" value={ret} min={depart} disabled={!roundTrip} onChange={e => setRet(e.target.value)} />
           </label>
-          <label className="chk"><input type="checkbox" checked={roundTrip} onChange={e => setRoundTrip(e.target.checked)} /> Отиване и връщане</label>
+          <label className="chk"><input type="checkbox" checked={roundTrip} onChange={e => setRoundTrip(e.target.checked)} /> {t.roundTrip}</label>
         </div>
         <div className="row4">
-          <label className="fld"><span>Превозно средство</span>
+          <label className="fld"><span>{t.vehicle}</span>
             <select value={vehicle.kind} onChange={e => setV({ kind: e.target.value as VehicleKind })}>
-              <option value="car">Лек автомобил (до 3,5 t)</option>
-              <option value="carTrailer">Автомобил с ремарке/каравана</option>
-              <option value="moto">Мотоциклет</option>
+              <option value="car">{t.car}</option>
+              <option value="carTrailer">{t.carTrailer}</option>
+              <option value="moto">{t.moto}</option>
             </select>
           </label>
-          <label className="fld"><span>Задвижване</span>
+          <label className="fld"><span>{t.power}</span>
             <select value={vehicle.powertrain} onChange={e => setV({ powertrain: e.target.value as Powertrain })}>
-              <option value="standard">Бензин / дизел / LPG</option>
-              <option value="phev">Plug-in хибрид</option>
-              <option value="cng">Метан (CNG/LNG)</option>
-              <option value="electric">Електрически</option>
+              <option value="standard">{t.std}</option>
+              <option value="phev">{t.phev}</option>
+              <option value="cng">{t.cng}</option>
+              <option value="electric">{t.ev}</option>
             </select>
           </label>
-          <label className="fld"><span>Екокласа</span>
+          <label className="fld"><span>{t.euro}</span>
             <select value={vehicle.euroClass} onChange={e => setV({ euroClass: e.target.value as EuroClass })}>
-              <option value="euro6">Евро 6</option>
-              <option value="euro4_5">Евро 4–5</option>
-              <option value="euro0_3">Евро 3 и по-ниска</option>
+              <option value="euro6">{t.e6}</option>
+              <option value="euro4_5">{t.e45}</option>
+              <option value="euro0_3">{t.e03}</option>
             </select>
           </label>
           {roundTrip && (
-            <label className="chk" title="Ако по време на престоя ще пътувате по магистралите (напр. до пистите), винетката трябва да покрива всички дни, не само пристигането и тръгването.">
-              <input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> Ще ползвам магистралите и през престоя{(stops[stops.length - 1].place?.label.split(", ").pop()) ? ` в ${stops[stops.length - 1].place!.label.split(", ").pop()}` : " на крайната точка"}
+            <label className="chk" title={t.stayTitle}>
+              <input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> {t.stay(stops[stops.length - 1].place?.label.split(", ").pop() || null)}
             </label>
           )}
         </div>
         {error && <p className="err" role="alert">{error}</p>}
-        <button className="btn primary big" disabled={busy}>{busy ? "Изчисляване…" : "Покажи кои винетки ми трябват"}</button>
+        <button className="btn primary big" disabled={busy}>{busy ? t.busy : t.submit}</button>
       </form>
 
       {route && result && (
@@ -194,99 +198,97 @@ export default function Planner() {
             <div>
               <h2>{routePlaces.map(p => p.name).join(" → ")}</h2>
               <p className="muted">
-                {Math.round(route.distanceKm)} km · около {Math.floor(route.durationH)} ч {Math.round((route.durationH % 1) * 60)} мин шофиране
-                {roundTrip ? ` · обратно на ${fmt(ret)}` : ""}
+                {t.drive(Math.round(route.distanceKm), Math.floor(route.durationH), Math.round((route.durationH % 1) * 60))}
+                {roundTrip ? t.back(fmt(ret)) : ""}
               </p>
             </div>
             <div className="total">
-              <span>Винетки и такси{result.partial ? " (без тол таксите по км)" : ""}</span>
-              <b>≈ {result.totalEur.toLocaleString("bg-BG", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €</b>
+              <span>{t.totalLabel}{result.partial ? t.totalPartial : ""}</span>
+              <b>≈ {eurTotal(result.totalEur, lang)}</b>
             </div>
           </div>
           <div className="share-row">
             <button type="button" className="link" onClick={() => {
               const url = window.location.href;
-              if (navigator.share) navigator.share({ title: "Винетки за пътуването", url }).catch(() => {});
-              else navigator.clipboard?.writeText(url).then(() => alert("Линкът е копиран."));
-            }}>Сподели пътуването ↗</button>
-            <button type="button" className="link" onClick={() => document.querySelector(".form")?.scrollIntoView({ behavior: "smooth" })}>Промени маршрута ↑</button>
+              if (navigator.share) navigator.share({ title: t.shareTitle, url }).catch(() => {});
+              else navigator.clipboard?.writeText(url).then(() => alert(t.copied));
+            }}>{t.share}</button>
+            <button type="button" className="link" onClick={() => document.querySelector(".form")?.scrollIntoView({ behavior: "smooth" })}>{t.edit}</button>
           </div>
-          <RouteMap coords={route.coords} via={viaCoords} />
+          <RouteMap coords={route.coords} via={viaCoords} label={t.mapLabel} />
           <ol className="plans">
-            {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} />)}
+            {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} lang={lang} t={t} />)}
           </ol>
-          <p className="muted small">
-            Сумите в чужда валута са превърнати в евро по курса на ЕЦБ. Плащате в местна валута на официалния сайт.
-            Приемаме, че шофирате до 10 часа на ден и минавате по магистралите. Проверете датите преди покупка.
-          </p>
+          <p className="muted small">{t.note}</p>
         </section>
       )}
     </div>
   );
 }
 
-function PlanCard({ p, roundTrip }: { p: CountryPlan; roundTrip: boolean }) {
+function PlanCard({ p, roundTrip, lang, t }: { p: CountryPlan; roundTrip: boolean; lang: Lang; t: Dict }) {
   const c = p.country;
+  const fmt = (s: string) => fmtDate(s, lang);
   const cur = c?.currency || "EUR";
   return (
     <li className="card plan">
       <div className="plan-head">
         <h3><span className="flag" aria-hidden>{c?.flag}</span> {p.name}</h3>
-        <span className="muted small">{Math.round(p.km)} km · {p.dates.map(fmt).join(", ")}</span>
+        <span className="muted small">{Math.round(p.km)} km · {p.dates.map(d => fmt(d)).join(", ")}</span>
       </div>
 
-      {!c && <p className="muted">Нямаме данни за тази държава. Проверете дали има такси за пътища.</p>}
-      {c?.system === "none" && <p className="ok">Без винетка и без такса за леки автомобили.</p>}
+      {!c && <p className="muted">{t.noData}</p>}
+      {c?.system === "none" && <p className="ok">{t.noToll}</p>}
 
       {c?.products && p.cover && (
-        p.cover.purchases.length === 0 ? <p className="ok">Не е нужна винетка за тези дни.</p> : (
+        p.cover.purchases.length === 0 ? <p className="ok">{t.noneNeeded}</p> : (
           <div className="buy">
             <ul className="purchases">
               {p.cover.purchases.map((x, i) => (
                 <li key={i}>
                   <b>{x.product.label}</b>
                   <span className="muted"> · {fmt(x.start)}{x.start !== x.end ? ` – ${fmt(x.end)}` : ""}</span>
-                  <span className="price">{money(x.price, cur)} <em>{cur !== "EUR" ? eurApprox(p.eur(x.price)) : ""}</em></span>
+                  <span className="price">{money(x.price, cur, lang)} <em>{cur !== "EUR" ? eurApprox(p.eur(x.price), lang) : ""}</em></span>
                   {x.delayed && (
-                    <div className="warn">Купена онлайн днес, тази винетка важи чак от 18-ия ден. Купете стикер от пункт за продажба или изберете по-кратки винетки.</div>
+                    <div className="warn">{t.delayed}</div>
                   )}
                 </li>
               ))}
             </ul>
-            {c.official[0] && <a className="btn primary" href={c.official[0].url} target="_blank" rel="noopener">Купи от официалния сайт ↗</a>}
+            {c.official[0] && <a className="btn primary" href={c.official[0].url} target="_blank" rel="noopener">{t.buy}</a>}
           </div>
         )
       )}
       {c?.products && !p.cover && (
         p.unknownPrice
-          ? <p className="warn">Не потвърдихме цена за този вид превозно средство. Проверете на <a href={c.official[0]?.url} target="_blank" rel="noopener">официалния сайт</a>.</p>
-          : <p className="ok">За този вид превозно средство не се изисква винетка.</p>
+          ? <p className="warn">{t.unknownPrice[0]}<a href={c.official[0]?.url} target="_blank" rel="noopener">{t.unknownPrice[1]}</a>{t.unknownPrice[2]}</p>
+          : <p className="ok">{t.notRequired}</p>
       )}
 
-      {p.tolls.map(t => (
-        <div key={t.id} className="toll">
-          <b>{t.name}</b>: {t.priceCar != null ? money(t.priceCar, cur) : "—"} на преминаване{roundTrip ? " (× 2 за връщане)" : ""}
-          {cur !== "EUR" && t.priceCar != null ? ` ${eurApprox(p.eur(t.priceCar))}` : ""}
-          {t.note && <span className="muted small"> — {t.note}</span>}
-          {" "}<a href={t.buyUrl} target="_blank" rel="noopener">купи ↗</a>
+      {p.tolls.map(x => (
+        <div key={x.id} className="toll">
+          <b>{x.name}</b>: {x.priceCar != null ? money(x.priceCar, cur, lang) : "—"} {t.perPass}{roundTrip ? t.times2 : ""}
+          {cur !== "EUR" && x.priceCar != null ? ` ${eurApprox(p.eur(x.priceCar), lang)}` : ""}
+          {x.note && <span className="muted small"> — {x.note}</span>}
+          {" "}<a href={x.buyUrl} target="_blank" rel="noopener">{t.buyShort}</a>
         </div>
       ))}
 
       {c?.system === "toll" && c.tollInfo && (
         <div className="tollinfo">
-          <p>Такса по участъци — плаща се на място. {c.tollInfo[0]}</p>
-          <a href={c.official[c.official.length - 1]?.url || c.official[0]?.url} target="_blank" rel="noopener">Официален калкулатор/цени ↗</a>
+          <p>{t.tollPrefix} {c.tollInfo[0]}</p>
+          <a href={c.official[c.official.length - 1]?.url || c.official[0]?.url} target="_blank" rel="noopener">{t.officialCalc}</a>
         </div>
       )}
 
       {c?.status === "unverified" && <p className="warn small">{c.statusNote}</p>}
       {c && (c.traps.length > 0) && (
         <details className="traps">
-          <summary>Внимавайте ({c.traps.length})</summary>
-          <ul>{c.traps.map(t => <li key={t}>{t}</li>)}</ul>
+          <summary>{t.watch(c.traps.length)}</summary>
+          <ul>{c.traps.map(x => <li key={x}>{x}</li>)}</ul>
         </details>
       )}
-      {c && <Link className="small" href={`/${c.slug}/`}>Всичко за {c.name} →</Link>}
+      {c && <Link className="small" href={countryPath(c, lang)}>{t.allAbout(c.name)}</Link>}
     </li>
   );
 }

@@ -2,7 +2,7 @@
 import { useEffect, useRef } from "react";
 import "leaflet/dist/leaflet.css";
 
-export default function RouteMap({ coords, via = [] }: { coords: [number, number][]; via?: [number, number][] }) {
+export default function RouteMap({ coords, via = [], label = "Карта на маршрута" }: { coords: [number, number][]; via?: [number, number][]; label?: string }) {
   const el = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let map: import("leaflet").Map | null = null;
@@ -23,5 +23,5 @@ export default function RouteMap({ coords, via = [] }: { coords: [number, number
     });
     return () => { cancelled = true; map?.remove(); };
   }, [coords, via]);
-  return <div ref={el} className="map" role="img" aria-label="Карта на маршрута" />;
+  return <div ref={el} className="map" role="img" aria-label={label} />;
 }

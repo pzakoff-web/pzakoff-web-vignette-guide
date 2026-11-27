@@ -10,8 +10,8 @@ export interface Place { name: string; label: string; lat: number; lon: number }
  * Еднократно търсене (при натискане на бутона), което разбира и български имена на чужди градове.
  * Правилата на Nominatim забраняват автодовършване, затова тук не се вика при писане.
  */
-export async function resolvePlace(q: string, signal?: AbortSignal): Promise<Place | null> {
-  const url = `${NOMINATIM_URL}/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=1&accept-language=bg&featureType=settlement`;
+export async function resolvePlace(q: string, lang: "bg" | "en" = "bg", signal?: AbortSignal): Promise<Place | null> {
+  const url = `${NOMINATIM_URL}/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=1&accept-language=${lang}&featureType=settlement`;
   const r = await fetch(url, { signal });
   if (!r.ok) return null;
   const j = await r.json();
@@ -20,17 +20,27 @@ export async function resolvePlace(q: string, signal?: AbortSignal): Promise<Pla
   return { name: String(j[0].name || j[0].display_name.split(",")[0]), label, lat: Number(j[0].lat), lon: Number(j[0].lon) };
 }
 
-export async function searchPlaces(q: string, signal?: AbortSignal): Promise<Place[]> {
-  const url = `${GEOCODER_URL}/api/?q=${encodeURIComponent(q)}&limit=6&osm_tag=place&bbox=-25,34,45,72`;
+// Градовете преди селата: Photon понякога дава първо село със същото име.
+const RANK: Record<string, number> = { city: 0, town: 1, municipality: 2, village: 3, suburb: 4, hamlet: 5 };
+
+export async function searchPlaces(q: string, signal?: AbortSignal, lang: "bg" | "en" = "bg"): Promise<Place[]> {
+  const url = `${GEOCODER_URL}/api/?q=${encodeURIComponent(q)}&limit=12&osm_tag=place&bbox=-25,34,45,72${lang === "en" ? "&lang=en" : ""}`;
   const r = await fetch(url, { signal });
-  if (!r.ok) throw new Error("Търсенето не отговаря");
+  if (!r.ok) throw new Error("SEARCH_FAIL");
   const j = await r.json();
-  return (j.features || []).map((f: { properties: Record<string, string>; geometry: { coordinates: [number, number] } }) => {
-    const p = f.properties;
-    const name = p.name || p.city || "";
-    const label = [name, p.state !== name ? p.state : null, p.country].filter(Boolean).join(", ");
-    return { name, label, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] };
-  });
+  type F = { properties: Record<string, string>; geometry: { coordinates: [number, number] } };
+  const seen = new Set<string>();
+  return (j.features as F[] || [])
+    .map((f, i) => ({ f, i, rank: RANK[f.properties.osm_value] ?? 6 }))
+    .sort((a, b) => a.rank - b.rank || a.i - b.i)
+    .map(({ f }) => {
+      const p = f.properties;
+      const name = p.name || p.city || "";
+      const label = [name, p.state !== name ? p.state : null, p.country].filter(Boolean).join(", ");
+      return { name, label, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] };
+    })
+    .filter(p => { const k = p.label; if (seen.has(k)) return false; seen.add(k); return true; })
+    .slice(0, 6);
 }
 
 export interface RouteResult {
@@ -45,9 +55,9 @@ export async function fetchRoute(points: Place[], signal?: AbortSignal): Promise
   const path = points.map(p => `${p.lon},${p.lat}`).join(";");
   const url = `${ROUTER_URL}/route/v1/driving/${path}?overview=full&geometries=geojson&annotations=duration,distance`;
   const r = await fetch(url, { signal });
-  if (!r.ok) throw new Error("Маршрутът не може да бъде изчислен в момента. Опитайте след малко.");
+  if (!r.ok) throw new Error("ROUTE_FAIL");
   const j = await r.json();
-  if (j.code !== "Ok" || !j.routes?.length) throw new Error("Не намерихме маршрут между тези места");
+  if (j.code !== "Ok" || !j.routes?.length) throw new Error("NO_ROUTE");
   const route = j.routes[0];
   const coords = route.geometry.coordinates as [number, number][];
   const durs: number[] = route.legs.flatMap((l: { annotation: { duration: number[] } }) => l.annotation.duration);

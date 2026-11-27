@@ -2,8 +2,8 @@
 import { useEffect, useRef, useState } from "react";
 import { searchPlaces, type Place } from "@/lib/route";
 
-export function PlaceInput({ label, value, onChange, onText, placeholder }: {
-  label: string; value: Place | null; onChange: (p: Place | null) => void; onText?: (t: string) => void; placeholder?: string;
+export function PlaceInput({ label, value, onChange, onText, placeholder, lang = "bg" }: {
+  label: string; value: Place | null; onChange: (p: Place | null) => void; onText?: (t: string) => void; placeholder?: string; lang?: "bg" | "en";
 }) {
   const [q, setQ] = useState(value?.label || "");
   const [items, setItems] = useState<Place[]>([]);
@@ -15,10 +15,10 @@ export function PlaceInput({ label, value, onChange, onText, placeholder }: {
     if (!typed.current || q.trim().length < 2) { setItems([]); return; }
     const ctrl = new AbortController();
     const h = setTimeout(() => {
-      searchPlaces(q.trim(), ctrl.signal).then(r => { setItems(r); setActive(0); setOpen(true); }).catch(() => {});
+      searchPlaces(q.trim(), ctrl.signal, lang).then(r => { setItems(r); setActive(0); setOpen(true); }).catch(() => {});
     }, 250);
     return () => { clearTimeout(h); ctrl.abort(); };
-  }, [q]);
+  }, [q, lang]);
 
   const pick = (p: Place) => { typed.current = false; setQ(p.label); setOpen(false); onChange(p); onText?.(p.label); };
   // Мястото е намерено при натискане на бутона (Nominatim) — показваме го в полето.
