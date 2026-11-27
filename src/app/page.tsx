@@ -24,6 +24,7 @@ export default function Home() {
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <section className="hero">
         <div className="wrap">
+          <p className="eyebrow">{vign.length} държави с винетки · само официални източници</p>
           <h1>Кои винетки ми трябват?</h1>
           <p className="lead">Въведете маршрута и датите. Ще ви кажем кои винетки и такси ви трябват, за какъв срок е най-евтино и къде да ги купите — <b>само от официалните държавни сайтове</b>, без посредници и надценки.</p>
         </div>
@@ -46,7 +47,7 @@ export default function Home() {
             {tolls.map(c => (
               <Link key={c.code} href={`/${c.slug}/`} className="card country">
                 <span className="flag" aria-hidden>{c.flag}</span>
-                <span><b>{c.name}</b><span className="muted small">{c.system === "none" ? "без такса за коли" : "такса по участъци"}</span></span>
+                <span><b>{c.name}</b><span className="muted small">{c.system === "none" ? "без такса за коли" : c.system === "mixed" ? "платени мостове" : "такса по участъци"}</span></span>
               </Link>
             ))}
           </div>

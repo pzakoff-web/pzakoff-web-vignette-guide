@@ -2,7 +2,11 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import Link from "next/link";
 import { SITE } from "@/lib/site";
+import { Onest } from "next/font/google";
 import "./globals.css";
+
+// Onest е проектиран с кирилица от самото начало — четлив и спокоен.
+const sans = Onest({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE.url),
@@ -11,11 +15,11 @@ export const metadata: Metadata = {
   alternates: { canonical: "/" },
   openGraph: { type: "website", locale: "bg_BG", siteName: SITE.name, url: SITE.url },
 };
-export const viewport: Viewport = { themeColor: "#0f7a4a", width: "device-width", initialScale: 1 };
+export const viewport: Viewport = { themeColor: "#fbfbf9", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="bg">
+    <html lang="bg" className={sans.variable}>
       <body>
         {SITE.adsenseClient ? (
           <Script async strategy="afterInteractive" crossOrigin="anonymous"
