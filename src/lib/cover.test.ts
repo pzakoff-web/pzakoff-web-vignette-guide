@@ -111,3 +111,32 @@ describe("такси по километър", () => {
     expect(m.get("191")!).toBeLessThan(10);
   });
 });
+
+describe("линкове за покупка", () => {
+  it("Чехия: вид винетка, държава и номер в адреса", async () => {
+    const { buyLink } = await import("./buy");
+    const cz = c("CZ"), p = cz.products!.find(x => x.id === "10d")!;
+    const l = buyLink(cz, p, car, { plate: "CB 1234 AB", plateCountry: "BG" });
+    expect(l.level).toBe("prefilled");
+    expect(l.url).toContain("chargeTypeId=9e5b7da5-b131-4bca-8d85-11c2b672948b");
+    expect(l.url).toContain("countryId=15a65497-4577-4918-bf38-24dadb2b0fa0");
+    expect(l.url).toContain("licensePlate=CB1234AB");
+    // кирилските букви от българските номера се превръщат в латиница
+    expect(buyLink(cz, p, car, { plate: "СВ 1234 АВ", plateCountry: "BG" }).url).toContain("licensePlate=CB1234AB");
+    expect(buyLink(cz, p, car, { plate: "Ж 12", plateCountry: "BG" }).level).toBe("product");
+  });
+  it("България: директно до вида винетка", async () => {
+    const { buyLink } = await import("./buy");
+    const bg = c("BG");
+    expect(buyLink(bg, bg.products!.find(x => x.id === "we")!, car).url).toBe("https://web.bgtoll.bg/Evignette/Create?vignetteTypeID=5");
+  });
+});
+
+describe("18-те дни в Австрия (официален банер: купена на 26.11 → важи от 14.12)", () => {
+  it("начало 14.12 при покупка на 26.11 не е забавено, 13.12 е", async () => {
+    const { range } = await import("./dates");
+    const from = (s: string) => cheapestCover(range(s, "2027-01-20"), c("AT").products!, car, "2026-11-26")!.purchases[0];
+    expect(from("2026-12-14").delayed).toBe(false);
+    expect(from("2026-12-13").delayed).toBe(true);
+  });
+});

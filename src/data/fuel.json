@@ -1,0 +1,141 @@
+{
+  "date": "2026-11-23",
+  "source": "https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en",
+  "prices": {
+    "100": {
+      "petrol": 1.484,
+      "diesel": 1.82,
+      "lpg": 0.756
+    },
+    "191": {
+      "petrol": 1.615,
+      "diesel": 1.945,
+      "lpg": 1.027
+    },
+    "196": {
+      "petrol": 1.594,
+      "diesel": 1.963,
+      "lpg": null
+    },
+    "203": {
+      "petrol": 1.568,
+      "diesel": 1.775,
+      "lpg": 1.076
+    },
+    "208": {
+      "petrol": 2.364,
+      "diesel": 2.341,
+      "lpg": null
+    },
+    "233": {
+      "petrol": 1.709,
+      "diesel": 2.001,
+      "lpg": 1.01
+    },
+    "246": {
+      "petrol": 2.006,
+      "diesel": 2.393,
+      "lpg": null
+    },
+    "250": {
+      "petrol": 2.002,
+      "diesel": 2.098,
+      "lpg": 1.057
+    },
+    "276": {
+      "petrol": 1.964,
+      "diesel": 2.125,
+      "lpg": 1.155
+    },
+    "300": {
+      "petrol": 1.923,
+      "diesel": 1.995,
+      "lpg": null
+    },
+    "348": {
+      "petrol": 1.555,
+      "diesel": 1.86,
+      "lpg": 1.13
+    },
+    "372": {
+      "petrol": 1.889,
+      "diesel": 2.07,
+      "lpg": null
+    },
+    "380": {
+      "petrol": 1.942,
+      "diesel": 2.195,
+      "lpg": 0.845
+    },
+    "428": {
+      "petrol": 1.719,
+      "diesel": 1.967,
+      "lpg": 1.131
+    },
+    "440": {
+      "petrol": 1.717,
+      "diesel": 2.154,
+      "lpg": 1.044
+    },
+    "442": {
+      "petrol": 1.559,
+      "diesel": 1.904,
+      "lpg": 0.872
+    },
+    "470": {
+      "petrol": 1.34,
+      "diesel": 1.21,
+      "lpg": null
+    },
+    "528": {
+      "petrol": 2.104,
+      "diesel": 2.22,
+      "lpg": 1.013
+    },
+    "616": {
+      "petrol": 1.308,
+      "diesel": 1.626,
+      "lpg": 0.889
+    },
+    "620": {
+      "petrol": 1.856,
+      "diesel": 2.04,
+      "lpg": 1.032
+    },
+    "642": {
+      "petrol": 1.694,
+      "diesel": 1.964,
+      "lpg": 0.905
+    },
+    "703": {
+      "petrol": 1.571,
+      "diesel": 1.854,
+      "lpg": 0.986
+    },
+    "705": {
+      "petrol": 1.482,
+      "diesel": 1.833,
+      "lpg": 1.138
+    },
+    "724": {
+      "petrol": 1.56,
+      "diesel": 1.792,
+      "lpg": 1.141
+    },
+    "752": {
+      "petrol": 1.359,
+      "diesel": 1.814,
+      "lpg": null
+    },
+    "040": {
+      "petrol": 1.57,
+      "diesel": 1.986,
+      "lpg": null
+    },
+    "056": {
+      "petrol": 1.723,
+      "diesel": 2.207,
+      "lpg": 0.994
+    }
+  }
+}

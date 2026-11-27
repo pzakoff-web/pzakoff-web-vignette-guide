@@ -233,3 +233,9 @@ input[type="checkbox"] { appearance: auto; -webkit-appearance: auto; width: 18px
 .how p { font-size: 13.5px; color: var(--muted); margin: 6px 0 0; }
 
 .h2-country { color: var(--muted); font-weight: 400; font-size: .62em; letter-spacing: 0; }
+
+/* Гориво, напомняния, покупка */
+.plate-hint { margin-top: -10px; padding-left: 0; }
+.refuel { font-size: 14.5px; color: var(--ink-2); border-left: 2px solid var(--accent); padding: 4px 0 4px 14px; margin: 0 0 16px; }
+.fuel-line { margin: 0; }
+.row-buy { flex-basis: 100%; color: var(--accent); }

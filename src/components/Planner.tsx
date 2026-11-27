@@ -9,7 +9,17 @@ import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
 import { addDays, iso } from "@/lib/dates";
 import { T, countryPath, eurApprox, eurRange, eurTotal, fmtDate, money, type Dict, type Lang } from "@/lib/i18n";
-import type { EuroClass, Powertrain, Vehicle, VehicleKind } from "@/data/types";
+import type { EuroClass, FuelType, Powertrain, Vehicle, VehicleKind } from "@/data/types";
+import { FUEL_DATE } from "@/lib/trip";
+import { buyLink, type BuyCtx } from "@/lib/buy";
+import { reminders, toIcs } from "@/lib/ics";
+import { COUNTRY_NAMES } from "@/lib/aliases";
+import { SITE } from "@/lib/site";
+
+// Номерът и горивото се пазят само на устройството (не в адреса за споделяне).
+const LS = "vg.prefs";
+const loadPrefs = () => { try { return JSON.parse(localStorage.getItem(LS) || "{}"); } catch { return {}; } };
+const savePrefs = (v: object) => { try { localStorage.setItem(LS, JSON.stringify(v)); } catch { /* частен режим */ } };
 
 const RouteMap = dynamic(() => import("./RouteMap"), { ssr: false, loading: () => <div className="map map-loading" /> });
 
@@ -35,13 +45,43 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const restored = useRef(false);
+  const [fuelType, setFuelType] = useState<FuelType | "none">("diesel");
+  const [l100, setL100] = useState("6.5");
+  const [plate, setPlate] = useState("");
+  const [plateCountry, setPlateCountry] = useState(lang === "bg" ? "BG" : "");
+  const prefsLoaded = useRef(false);
+  useEffect(() => {
+    const p = loadPrefs();
+    /* eslint-disable react-hooks/set-state-in-effect -- еднократно от localStorage */
+    if (p.fuelType) setFuelType(p.fuelType);
+    if (p.l100) setL100(String(p.l100));
+    if (p.plate) setPlate(p.plate);
+    if (p.plateCountry) setPlateCountry(p.plateCountry);
+    /* eslint-enable react-hooks/set-state-in-effect */
+    prefsLoaded.current = true;
+  }, []);
+  useEffect(() => { if (prefsLoaded.current) savePrefs({ fuelType, l100, plate, plateCountry }); }, [fuelType, l100, plate, plateCountry]);
+  const buyCtx: BuyCtx = useMemo(() => ({ plate, plateCountry }), [plate, plateCountry]);
+  const l100n = Math.min(40, Math.max(1, parseFloat(l100.replace(",", ".")) || 0));
 
   const result = useMemo(() => {
     if (!route) return null;
     return planTrip(route, {
       vehicle, departDate: depart, departHour: hour, returnDate: roundTrip ? ret : undefined, stayDriving: roundTrip && stay, today: today(), lang,
+      fuel: fuelType === "none" || !l100n ? undefined : { type: fuelType, l100: l100n },
     });
-  }, [route, vehicle, depart, hour, roundTrip, ret, stay, lang]);
+  }, [route, vehicle, depart, hour, roundTrip, ret, stay, lang, fuelType, l100n]);
+
+  const downloadReminders = () => {
+    if (!result) return;
+    const name = routePlaces.map(p => p.name).join(" → ");
+    const ics = toIcs(reminders(result.plans, vehicle, buyCtx, today(), lang, depart, name), new URL(SITE.url).hostname);
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    a.download = "vignettes.ics";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
+  };
 
   const viaCoords = useMemo(() => routePlaces.slice(1, -1).map(p => [p.lon, p.lat] as [number, number]), [routePlaces]);
 
@@ -188,6 +228,29 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
             </label>
           )}
         </div>
+        <div className="row4">
+          <label className="fld"><span>{t.fuel}</span>
+            <select value={fuelType} onChange={e => setFuelType(e.target.value as FuelType | "none")}>
+              <option value="petrol">{t.petrol}</option>
+              <option value="diesel">{t.diesel}</option>
+              <option value="lpg">{t.lpg}</option>
+              <option value="none">{t.fuelNone}</option>
+            </select>
+          </label>
+          <label className="fld"><span>{t.l100}</span>
+            <input inputMode="decimal" value={l100} disabled={fuelType === "none"} onChange={e => setL100(e.target.value)} />
+          </label>
+          <label className="fld"><span>{t.plate}</span>
+            <input value={plate} placeholder={t.platePh} autoComplete="off" onChange={e => setPlate(e.target.value)} />
+          </label>
+          <label className="fld"><span>{t.plateCountry}</span>
+            <select value={plateCountry} onChange={e => setPlateCountry(e.target.value)}>
+              <option value="">—</option>
+              {Object.entries(COUNTRY_NAMES).sort((a, b) => a[1][lang].localeCompare(b[1][lang], lang)).map(([code, n]) => <option key={code} value={code}>{n[lang]}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="muted small hint plate-hint">{t.plateHint}</p>
         {error && <p className="err" role="alert">{error}</p>}
         <button className="btn primary big" disabled={busy}>{busy ? t.busy : t.submit}</button>
       </form>
@@ -205,7 +268,19 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
               </p>
             </div>
             <div className="total">
-              {result.tollHighEur > 0 ? (
+              {result.fuel ? (
+                <>
+                  <span>{t.tripTotal}{result.partial ? t.totalPartial : ""}</span>
+                  <b>≈ {result.tollHighEur > 0
+                    ? eurRange(result.totalEur + result.tollLowEur + result.fuel.eur, result.totalEur + result.tollHighEur + result.fuel.eur, lang)
+                    : eurTotal(Math.round(result.totalEur + result.fuel.eur), lang)}</b>
+                  <span className="total-split">
+                    {t.partVign(eurTotal(result.totalEur, lang))}
+                    {result.tollHighEur > 0 && <> · {t.partToll(`≈ ${eurRange(result.tollLowEur, result.tollHighEur, lang)}`)}</>}
+                    {" · "}{t.partFuel(`≈ ${eurTotal(result.fuel.eur, lang)}`)}
+                  </span>
+                </>
+              ) : result.tollHighEur > 0 ? (
                 <>
                   <span>{t.totalWithTolls}{result.partial ? t.totalPartial : ""}</span>
                   <b>≈ {eurRange(result.totalEur + result.tollLowEur, result.totalEur + result.tollHighEur, lang)}</b>
@@ -225,20 +300,28 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
               if (navigator.share) navigator.share({ title: t.shareTitle, url }).catch(() => {});
               else navigator.clipboard?.writeText(url).then(() => alert(t.copied));
             }}>{t.share}</button>
+            <button type="button" className="link" onClick={downloadReminders}>{t.remind}</button>
             <button type="button" className="link" onClick={() => document.querySelector(".form")?.scrollIntoView({ behavior: "smooth" })}>{t.edit}</button>
           </div>
+          {result.fuel?.cheapest && result.fuel.priciest && result.fuel.priciest.price - result.fuel.cheapest.price >= 0.03 && (() => {
+            const nm = (iso: string) => result.plans.find(x => x.iso === iso)?.name || "";
+            const fp = (n: number) => money(Math.round(n * 1000) / 1000, "EUR", lang);
+            return <p className="refuel">⛽ {t.refuel(nm(result.fuel!.cheapest!.iso), fp(result.fuel!.cheapest!.price), nm(result.fuel!.priciest!.iso), fp(result.fuel!.priciest!.price),
+              eurTotal((result.fuel!.priciest!.price - result.fuel!.cheapest!.price) * 50, lang))}</p>;
+          })()}
           <RouteMap coords={route.coords} via={viaCoords} label={t.mapLabel} />
           <ol className="plans">
-            {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} lang={lang} t={t} />)}
+            {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} lang={lang} t={t} vehicle={vehicle} buyCtx={buyCtx} />)}
           </ol>
           <p className="muted small">{t.note}</p>
+          {result.fuel && <p className="muted small">{t.fuelSource(fmt(FUEL_DATE))}</p>}
         </section>
       )}
     </div>
   );
 }
 
-function PlanCard({ p, roundTrip, lang, t }: { p: CountryPlan; roundTrip: boolean; lang: Lang; t: Dict }) {
+function PlanCard({ p, roundTrip, lang, t, vehicle, buyCtx }: { p: CountryPlan; roundTrip: boolean; lang: Lang; t: Dict; vehicle: Vehicle; buyCtx: BuyCtx }) {
   const c = p.country;
   const fmt = (s: string) => fmtDate(s, lang);
   const cur = c?.currency || "EUR";
@@ -264,10 +347,13 @@ function PlanCard({ p, roundTrip, lang, t }: { p: CountryPlan; roundTrip: boolea
                   {x.delayed && (
                     <div className="warn">{t.delayed}</div>
                   )}
+                  {new Set(p.cover!.purchases.map(y => buyLink(c, y.product, vehicle, buyCtx).url)).size > 1 && (() => { const l = buyLink(c, x.product, vehicle, buyCtx);
+                    return <a className="small row-buy" href={l.url} target="_blank" rel="noopener">{l.level === "prefilled" ? t.buyPrefilled : l.level === "product" ? t.buyProduct : t.buyShort}</a>; })()}
                 </li>
               ))}
             </ul>
-            {c.official[0] && <a className="btn primary" href={c.official[0].url} target="_blank" rel="noopener">{t.buy}</a>}
+            {(() => { const l = buyLink(c, p.cover!.purchases[0].product, vehicle, buyCtx);
+              return <a className="btn primary" href={l.url} target="_blank" rel="noopener">{l.level === "prefilled" ? t.buyPrefilled : l.level === "product" ? t.buyProduct : t.buy}</a>; })()}
           </div>
         )
       )}
@@ -277,6 +363,11 @@ function PlanCard({ p, roundTrip, lang, t }: { p: CountryPlan; roundTrip: boolea
           : <p className="ok">{t.notRequired}</p>
       )}
 
+      {p.fuel && (
+        <p className="fuel-line muted small">{p.fuel.price != null
+          ? `${t.fuelLine(Math.round(p.fuel.liters), money(Math.round(p.fuel.price * 1000) / 1000, "EUR", lang))} ≈ ${eurTotal(p.fuel.eur!, lang)}`
+          : t.fuelNoPrice}</p>
+      )}
       {p.tolls.map(x => (
         <div key={x.id} className="toll">
           <b>{x.name}</b>: {x.priceCar != null ? money(x.priceCar, cur, lang) : "—"} {t.perPass}{roundTrip ? t.times2 : ""}

@@ -44,7 +44,7 @@ export function cheapestCover(dates: string[], products: Product[], vehicle: Veh
       const total = price + rest.total;
       // при равна цена предпочитаме по-малко покупки
       if (!best[i] || total < best[i]!.total - 1e-9 || (Math.abs(total - best[i]!.total) < 1e-9 && rest.purchases.length + 1 < best[i]!.purchases.length)) {
-        const delayed = !!p.onlineConsumerDelayDays && w.start < addDays(today, p.onlineConsumerDelayDays - 1);
+        const delayed = !!p.onlineConsumerDelayDays && w.start < addDays(today, p.onlineConsumerDelayDays);
         best[i] = { purchases: [{ product: p, start: w.start, end: w.end, price, delayed }, ...rest.purchases], total };
       }
     }

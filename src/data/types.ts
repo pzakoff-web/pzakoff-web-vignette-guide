@@ -13,6 +13,9 @@ export interface Vehicle {
   euroClass: EuroClass;
 }
 
+export type FuelType = "petrol" | "diesel" | "lpg";
+export interface FuelInput { type: FuelType; l100: number }
+
 /**
  * Как се смята валидността. Когато официалното правило не е потвърдено,
  * моделираме го консервативно (по-кратко), за да не препоръчаме невалидна винетка.

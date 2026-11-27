@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/fetch-rates.mjs && next build",
+    "build": "node scripts/fetch-rates.mjs && node scripts/fetch-fuel.mjs && next build",
     "test": "vitest run"
   },
   "dependencies": {
@@ -22,6 +22,7 @@
     "@types/react-dom": "^19",
     "@types/topojson-client": "^3.1.5",
     "@types/topojson-specification": "^1.0.5",
+    "read-excel-file": "^5.8.6",
     "typescript": "^5",
     "vitest": "4.1.8"
   }

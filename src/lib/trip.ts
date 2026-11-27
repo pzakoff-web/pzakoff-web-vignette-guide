@@ -4,6 +4,8 @@ import { OTHER_COUNTRY_NAMES_EN } from "@/data/countries.en";
 import { localize } from "@/data/localize";
 import type { Country, SectionToll, Vehicle } from "@/data/types";
 import rates from "@/data/rates.json";
+import fuelData from "@/data/fuel.json";
+import type { FuelInput } from "@/data/types";
 import { cheapestCover, type Cover } from "./cover";
 import { countryAt, distanceKm } from "./geo";
 import { addDays, range } from "./dates";
@@ -56,7 +58,16 @@ export interface TripInput {
   stayDriving: boolean; // кара по платени пътища и в държавата на престоя
   today: string;
   lang?: "bg" | "en";
+  fuel?: FuelInput;
 }
+
+/** Цена на горивото (€/л) в държавата по седмичния бюлетин на ЕК; null извън ЕС. */
+export function fuelPrice(iso: string, type: FuelInput["type"]): number | null {
+  const p = (fuelData.prices as Record<string, Record<string, number | null>>)[iso];
+  return p?.[type] ?? null;
+}
+export const FUEL_DATE = fuelData.date;
+export const FUEL_SOURCE = fuelData.source;
 
 export interface DistancePlan { km: number; lowEur: number; highEur: number; low: number; high: number; currency: string; trips: number }
 
@@ -95,6 +106,7 @@ export interface CountryPlan {
   unknownPrice: boolean;        // има винетка, но не знаем цената за този вид МПС
   tolls: SectionToll[];
   distance?: DistancePlan;      // ориентировъчна такса по километър
+  fuel?: { liters: number; price: number | null; eur: number | null };
   eur: (amount: number) => number | null;
 }
 
@@ -104,7 +116,9 @@ export function toEur(amount: number, currency: string): number | null {
   return r ? amount / r : null;
 }
 
-export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan[]; totalEur: number; tollLowEur: number; tollHighEur: number; partial: boolean; segments: Segment[] } {
+export interface FuelSummary { eur: number; liters: number; missing: string[]; cheapest?: { iso: string; price: number }; priciest?: { iso: string; price: number } }
+
+export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan[]; totalEur: number; tollLowEur: number; tollHighEur: number; partial: boolean; segments: Segment[]; fuel?: FuelSummary } {
   const segs = segmentsOf(r);
   const totalSec = r.cumSec[r.cumSec.length - 1];
   const dateMap = new Map<string, Set<string>>();
@@ -167,9 +181,31 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
     const name = c?.name || ((input.lang || "bg") === "en" ? OTHER_COUNTRY_NAMES_EN[iso] : OTHER_COUNTRY_NAMES[iso]) || "";
     // секционните такси — със същите id, но с преведени имена
     const lTolls = myTolls.map(t => c?.sectionTolls?.find(x => x.id === t.id) || t);
-    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, distance, eur };
+    // гориво: км в държавата × разход × цена там (приемаме, че зареждате там, където карате)
+    let fuel: CountryPlan["fuel"];
+    if (input.fuel) {
+      const liters = km * trips * input.fuel.l100 / 100;
+      const price = fuelPrice(iso, input.fuel.type);
+      fuel = { liters, price, eur: price == null ? null : liters * price };
+    }
+    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, distance, fuel, eur };
   });
-  return { plans, totalEur, tollLowEur, tollHighEur, partial, segments: segs };
+  let fuel: FuelSummary | undefined;
+  if (input.fuel) {
+    const priced = plans.filter(p => p.fuel?.price != null);
+    const missing = plans.filter(p => p.fuel && p.fuel.price == null && p.km >= 5).map(p => p.name);
+    // за държавите без цена (извън ЕС) — средната цена по маршрута, за да не изчезват литрите
+    const avg = priced.length ? priced.reduce((a, p) => a + p.fuel!.price!, 0) / priced.length : null;
+    const eur = plans.reduce((a, p) => a + (p.fuel ? (p.fuel.eur ?? (avg != null ? p.fuel.liters * avg : 0)) : 0), 0);
+    const liters = plans.reduce((a, p) => a + (p.fuel?.liters || 0), 0);
+    const sorted = [...priced].sort((a, b) => a.fuel!.price! - b.fuel!.price!);
+    fuel = {
+      eur, liters, missing,
+      cheapest: sorted[0] && { iso: sorted[0].iso, price: sorted[0].fuel!.price! },
+      priciest: sorted.length > 1 ? { iso: sorted[sorted.length - 1].iso, price: sorted[sorted.length - 1].fuel!.price! } : undefined,
+    };
+  }
+  return { plans, totalEur, tollLowEur, tollHighEur, partial, segments: segs, fuel };
 }
 
 export { COUNTRIES };
