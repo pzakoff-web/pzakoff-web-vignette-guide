@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { PlaceInput } from "./PlaceInput";
-import { fetchRoute, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
+import { fetchRoute, placeCountry, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
 import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
 import { addDays, iso } from "@/lib/dates";
@@ -184,7 +184,7 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
           </label>
           {roundTrip && (
             <label className="chk" title={t.stayTitle}>
-              <input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> {t.stay(stops[stops.length - 1].place?.label.split(", ").pop() || null)}
+              <input type="checkbox" checked={stay} onChange={e => setStay(e.target.checked)} /> {t.stay(stops[stops.length - 1].place ? placeCountry(stops[stops.length - 1].place!) || null : null)}
             </label>
           )}
         </div>
@@ -196,7 +196,9 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
         <section id="rezultat" className="result">
           <div className="result-head">
             <div>
-              <h2>{routePlaces.map(p => p.name).join(" → ")}</h2>
+              <h2>{routePlaces.map((p, i) => (
+                <span key={i}>{i > 0 && " → "}{p.name}{placeCountry(p) && <span className="h2-country"> ({placeCountry(p)})</span>}</span>
+              ))}</h2>
               <p className="muted">
                 {t.drive(Math.round(route.distanceKm), Math.floor(route.durationH), Math.round((route.durationH % 1) * 60))}
                 {roundTrip ? t.back(fmt(ret)) : ""}

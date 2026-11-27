@@ -2,15 +2,21 @@
 export const ROUTER_URL = (process.env.NEXT_PUBLIC_OSRM_URL || "https://router.project-osrm.org").replace(/\/$/, "");
 export const GEOCODER_URL = (process.env.NEXT_PUBLIC_PHOTON_URL || "https://photon.komoot.io").replace(/\/$/, "");
 
+import { COUNTRY_NAMES, aliasQuery, bgName } from "./aliases";
+
 export const NOMINATIM_URL = (process.env.NEXT_PUBLIC_NOMINATIM_URL || "https://nominatim.openstreetmap.org").replace(/\/$/, "");
 
 export interface Place { name: string; label: string; lat: number; lon: number }
+
+/** Държавата от етикета („Мюнхен, Бавария, Германия“ → „Германия“). */
+export const placeCountry = (p: Place) => (p.label.includes(", ") ? p.label.split(", ").pop()! : "");
 
 /**
  * Еднократно търсене (при натискане на бутона), което разбира и български имена на чужди градове.
  * Правилата на Nominatim забраняват автодовършване, затова тук не се вика при писане.
  */
 export async function resolvePlace(q: string, lang: "bg" | "en" = "bg", signal?: AbortSignal): Promise<Place | null> {
+  q = aliasQuery(q) || q;
   const url = `${NOMINATIM_URL}/search?q=${encodeURIComponent(q)}&format=jsonv2&limit=1&accept-language=${lang}&featureType=settlement`;
   const r = await fetch(url, { signal });
   if (!r.ok) return null;
@@ -21,25 +27,32 @@ export async function resolvePlace(q: string, lang: "bg" | "en" = "bg", signal?:
 }
 
 // Градовете преди селата: Photon понякога дава първо село със същото име.
-const RANK: Record<string, number> = { city: 0, town: 1, municipality: 2, village: 3, suburb: 4, hamlet: 5 };
+const RANK: Record<string, number> = { city: 0, town: 1, municipality: 2, village: 3, hamlet: 4 };
+// Квартали, площади, острови и подобни почти никога не са цел на пътуване — не ги предлагаме.
 
 export async function searchPlaces(q: string, signal?: AbortSignal, lang: "bg" | "en" = "bg"): Promise<Place[]> {
-  const url = `${GEOCODER_URL}/api/?q=${encodeURIComponent(q)}&limit=12&osm_tag=place&bbox=-25,34,45,72${lang === "en" ? "&lang=en" : ""}`;
+  const typed = q.trim();
+  const alias = aliasQuery(typed);
+  const url = `${GEOCODER_URL}/api/?q=${encodeURIComponent(alias || typed)}&limit=12&osm_tag=place&bbox=-25,34,45,72${lang === "en" ? "&lang=en" : ""}`;
   const r = await fetch(url, { signal });
   if (!r.ok) throw new Error("SEARCH_FAIL");
   const j = await r.json();
   type F = { properties: Record<string, string>; geometry: { coordinates: [number, number] } };
   const seen = new Set<string>();
   return (j.features as F[] || [])
-    .map((f, i) => ({ f, i, rank: RANK[f.properties.osm_value] ?? 6 }))
+    .map((f, i) => ({ f, i, rank: RANK[f.properties.osm_value] ?? 99 }))
+    .filter(x => x.rank < 99)
     .sort((a, b) => a.rank - b.rank || a.i - b.i)
-    .map(({ f }) => {
+    .map(({ f, rank }, k) => {
       const p = f.properties;
-      const name = p.name || p.city || "";
-      const label = [name, p.state !== name ? p.state : null, p.country].filter(Boolean).join(", ");
+      // Написано е българското име на град („Атина“) → показваме него, а не „Αθήνα“
+      const name = alias && k === 0 && lang === "bg" ? bgName(alias) || typed : (p.name || p.city || "");
+      const country = COUNTRY_NAMES[(p.countrycode || "").toUpperCase()]?.[lang] || p.country;
+      // областта помага само при села с еднакви имена
+      const label = [name, rank >= 3 && p.state !== name ? p.state : null, country].filter(Boolean).join(", ");
       return { name, label, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0] };
     })
-    .filter(p => { const k = p.label; if (seen.has(k)) return false; seen.add(k); return true; })
+    .filter(p => { if (seen.has(p.label)) return false; seen.add(p.label); return true; })
     .slice(0, 6);
 }
 

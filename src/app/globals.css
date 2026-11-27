@@ -231,3 +231,5 @@ input[type="checkbox"] { appearance: auto; -webkit-appearance: auto; width: 18px
 .how summary { cursor: pointer; font-size: 13px; color: var(--muted); list-style: none; margin-top: 4px; }
 .how summary::-webkit-details-marker { display: none; }
 .how p { font-size: 13.5px; color: var(--muted); margin: 6px 0 0; }
+
+.h2-country { color: var(--muted); font-weight: 400; font-size: .62em; letter-spacing: 0; }
