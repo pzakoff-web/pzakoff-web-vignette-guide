@@ -1,18 +1,18 @@
 import Script from "next/script";
 import Link from "next/link";
-import { Onest } from "next/font/google";
+// Шрифтът е в проекта (@fontsource-variable) — build-ът не зависи от Google Fonts.
+// index.css съдържа всички азбуки с unicode-range — браузърът тегли само нужните (латиница, кирилица).
+import "@fontsource-variable/onest/index.css";
 import { SITE } from "@/lib/site";
 import { T, home, privacyPath, type Lang } from "@/lib/i18n";
 import { LangSwitch } from "./LangSwitch";
 
-// Onest е проектиран с кирилица от самото начало — четлив и спокоен.
-const sans = Onest({ subsets: ["latin", "cyrillic"], weight: ["400", "500", "600", "700"], variable: "--font-sans", display: "swap" });
 
 /** Обща рамка за двете езикови версии (всяка има свой <html lang>). */
 export function Shell({ lang, children }: { lang: Lang; children: React.ReactNode }) {
   const t = T[lang];
   return (
-    <html lang={lang} className={sans.variable}>
+    <html lang={lang}>
       <body>
         {SITE.adsenseClient ? (
           <Script async strategy="afterInteractive" crossOrigin="anonymous"
