@@ -206,7 +206,7 @@ const ro: Country = {
   traps: [
     "От 1.10.2026 цената зависи от екокласата (Евро) на колата — по-старите плащат повече.",
     "Сайтът, който Google често показва първи (roviniete.ro), е упълномощен частен дистрибутор, не държавата. Официалният канал на CNAIR е etoll.ro (и приложението TollRo).",
-    "Отделна такса за моста Фетещ–Черна вода (A2) — винетката не я покрива.",
+    "От 1.10.2026 Румъния премахна таксите за коли на мостовете Гюргево–Русе (посока България), Фетещ–Черна вода (A2) и Джурджени–Вадул Оий (по вторични източници).",
   ],
   facts: ["Ремаркето не изисква отделна винетка.", "Може да се купи до 30 дни предварително."],
   sources: ["https://www.etoll.ro", "https://www.roviniete.ro/ro/info/rovinieta-pret", "https://www.roviniete.ro/ro/intrebari-frecvente/rovinieta"],
@@ -235,7 +235,15 @@ const bg: Country = {
     "Купувайте от web.bgtoll.bg — посредниците добавят такси.",
   ],
   facts: ["Може да се купи до 30 дни предварително."],
-  sources: ["https://web.bgtoll.bg/Evignette/ValidityPeriod?vignetteVehicleTypeID=1", "https://web.bgtoll.bg/Evignette/ValidityPeriod?vignetteVehicleTypeID=2"],
+  sectionTolls: [
+    { id: "ruse", name: "Дунав мост Русе–Гюргево (посока Румъния)", road: "E70/E85", priceCar: 2, point: [43.886, 26.0], radiusKm: 2.5, onlyFrom: "100", onlyTo: "642",
+      buyUrl: "https://customs.bg/wps/portal/agency-en/media-center/news-details/05-07-24-toll-danube-bridge-eng",
+      note: "Събира се от Агенция „Митници“ само при излизане от България; може и онлайн. От 1.10.2026 Румъния не взима такса за коли в посока Русе." },
+    { id: "vidin", name: "Дунав мост Видин–Калафат", road: "E79", priceCar: 6, point: [43.963, 22.93], radiusKm: 3,
+      buyUrl: "https://vidincalafatbridge.bg/en/charges", note: "6 € за кола в двете посоки (при влизане в България — 30 RON или 6 €)." },
+  ],
+  sources: ["https://web.bgtoll.bg/Evignette/ValidityPeriod?vignetteVehicleTypeID=1", "https://web.bgtoll.bg/Evignette/ValidityPeriod?vignetteVehicleTypeID=2",
+    "https://vidincalafatbridge.bg/en/charges", "https://www.fakti.bg/en/bulgaria/1050539-agencia-mitnici-predupredi-za-izmama-s-taksata-za-dunav-most-razmerat-na-taksata-e-fiksiran-2-evro"],
   checkedAt: "2026-11-26", status: "verified",
 };
 

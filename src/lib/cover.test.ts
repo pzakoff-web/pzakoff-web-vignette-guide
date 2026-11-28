@@ -140,3 +140,15 @@ describe("18-те дни в Австрия (официален банер: ку�
     expect(from("2026-12-13").delayed).toBe(true);
   });
 });
+
+describe("еднопосочни такси (Дунав мост Русе)", () => {
+  it("плаща се само България → Румъния", async () => {
+    const { tollPasses } = await import("./trip");
+    const ruse = c("BG").sectionTolls!.find(t => t.id === "ruse")!;
+    expect(tollPasses(ruse, ["100", "642", "348"], 1)).toBe(1);   // Варна → Унгария
+    expect(tollPasses(ruse, ["348", "642", "100"], 1)).toBe(0);   // Будапеща → Варна
+    expect(tollPasses(ruse, ["100", "642"], 2)).toBe(1);          // отиване и връщане
+    const vidin = c("BG").sectionTolls!.find(t => t.id === "vidin")!;
+    expect(tollPasses(vidin, ["100", "642"], 2)).toBe(2);
+  });
+});

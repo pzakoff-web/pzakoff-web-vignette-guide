@@ -126,7 +126,7 @@ export const EN: Record<string, CountryText> = {
     traps: [
       "Since 1 Oct 2026 the price depends on the car's Euro emission class — older cars pay more.",
       "The site Google often shows first (roviniete.ro) is an authorised private distributor, not the state. CNAIR's official channel is etoll.ro (and the TollRo app).",
-      "The Fetești–Cernavodă bridge (A2) has a separate toll — the vignette does not cover it.",
+      "Since 1 Oct 2026 Romania has removed car tolls on the Giurgiu–Ruse bridge (towards Bulgaria), Fetești–Cernavodă (A2) and Giurgeni–Vadu Oii (per secondary sources).",
     ],
     facts: ["A trailer does not need a separate vignette.", "Can be bought up to 30 days in advance."],
     statusNote: "The tariff comes from an authorised distributor citing the official order; the CNAIR site did not show the table.",
@@ -147,6 +147,10 @@ export const EN: Record<string, CountryText> = {
       "Buy on web.bgtoll.bg — resellers add fees.",
     ],
     facts: ["Can be bought up to 30 days in advance."],
+    sectionTolls: {
+      ruse: { name: "Danube Bridge Ruse–Giurgiu (towards Romania)", note: "Collected by the Bulgarian Customs Agency only when leaving Bulgaria; can also be paid online. Since 1 Oct 2026 Romania charges no car toll towards Ruse." },
+      vidin: { name: "Danube Bridge Vidin–Calafat", note: "€6 per car in both directions (entering Bulgaria: RON 30 or €6)." },
+    },
   },
   MD: {
     slug: "moldova",

@@ -58,8 +58,11 @@ export async function searchPlaces(q: string, signal?: AbortSignal, lang: "bg" |
 
 export interface RouteStep { coords: [number, number][]; ref: string }
 
+export interface FerryLeg { name: string; minutes: number; lat: number; lon: number; lineId?: string }
+
 export interface RouteResult {
-  steps: RouteStep[];          // стъпки с номер на пътя — за таксите по километър
+  steps: RouteStep[];
+  ferries: FerryLeg[];         // фериботи по маршрута          // стъпки с номер на пътя — за таксите по километър
   coords: [number, number][];  // [lon, lat]
   cumSec: number[];            // кумулативно време до всяка точка
   cumKm: number[];
@@ -83,11 +86,32 @@ export async function fetchRoute(points: Place[], signal?: AbortSignal): Promise
     cumSec.push(cumSec[i] + (durs[i] ?? 0));
     cumKm.push(cumKm[i] + (dists[i] ?? 0) / 1000);
   }
-  type S = { distance: number; ref?: string; geometry: { coordinates: [number, number][] } };
+  type S = { distance: number; duration: number; ref?: string; name?: string; mode?: string; maneuver: { location: [number, number] }; geometry: { coordinates: [number, number][] } };
+  const ferries: FerryLeg[] = [];
+  for (const st of route.legs.flatMap((l: { steps: S[] }) => l.steps) as S[]) {
+    if (st.mode !== "ferry") continue;
+    const last = ferries[ferries.length - 1];
+    if (last && last.name === (st.name || "")) { last.minutes += st.duration / 60; continue; }
+    ferries.push({ name: st.name || "", minutes: st.duration / 60, lat: st.maneuver.location[1], lon: st.maneuver.location[0] });
+  }
   const steps: RouteStep[] = route.legs.flatMap((l: { steps: S[] }) => l.steps)
     .filter((st: S) => st.distance > 0 && st.ref)
     .map((st: S) => ({ coords: st.geometry.coordinates, ref: st.ref || "" }));
-  return { coords, cumSec, cumKm, steps, distanceKm: route.distance / 1000, durationH: route.duration / 3600 };
+  return { coords, cumSec, cumKm, steps, ferries, distanceKm: route.distance / 1000, durationH: route.duration / 3600 };
+}
+
+/** Маршрут с ферибот: шофиране до пристанището + ферибот + шофиране от другото пристанище. */
+export function joinWithFerry(a: RouteResult, b: RouteResult, ferry: FerryLeg): RouteResult {
+  const t0 = a.cumSec[a.cumSec.length - 1] + ferry.minutes * 60, k0 = a.cumKm[a.cumKm.length - 1];
+  return {
+    coords: [...a.coords, ...b.coords],
+    cumSec: [...a.cumSec, ...b.cumSec.map(x => x + t0)],
+    cumKm: [...a.cumKm, ...b.cumKm.map(x => x + k0)],   // по море не се шофира — километрите не растат
+    steps: [...a.steps, ...b.steps],
+    ferries: [...a.ferries, ferry, ...b.ferries],
+    distanceKm: a.distanceKm + b.distanceKm,
+    durationH: a.durationH + b.durationH + ferry.minutes / 60,
+  };
 }
 
 // ── Състоянието на пътуването в адреса (за „назад“ и за споделяне) ──

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { PlaceInput } from "./PlaceInput";
-import { fetchRoute, placeCountry, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
+import { fetchRoute, joinWithFerry, type FerryLeg, placeCountry, placeFromParam, placeToParam, resolvePlace, type Place, type RouteResult } from "@/lib/route";
 import { loadBorders } from "@/lib/geo";
 import { planTrip, type CountryPlan } from "@/lib/trip";
 import { addDays, iso } from "@/lib/dates";
@@ -12,6 +12,11 @@ import { T, countryPath, eurApprox, eurRange, eurTotal, fmtDate, money, type Dic
 import type { EuroClass, FuelType, Powertrain, Vehicle, VehicleKind } from "@/data/types";
 import { FUEL_DATE } from "@/lib/trip";
 import type { RefuelPlan } from "@/lib/refuel";
+import { FERRY_LINES, FERRY_OPERATORS, type FerryLine } from "@/data/ferries";
+import { distanceKm } from "@/lib/geo";
+
+interface FerryAlt { line: FerryLine; reverse: boolean; route: RouteResult; savedKm: number; deltaH: number }
+const ferryKey = (a: FerryAlt) => `${a.line.id}${a.reverse ? "-r" : ""}`;
 import { buyLink, type BuyCtx } from "@/lib/buy";
 import { reminders, toIcs } from "@/lib/ics";
 import { COUNTRY_NAMES } from "@/lib/aliases";
@@ -46,6 +51,10 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const restored = useRef(false);
+  const [landRoute, setLandRoute] = useState<RouteResult | null>(null);   // маршрутът само по суша
+  const [ferryAlts, setFerryAlts] = useState<FerryAlt[]>([]);
+  const [ferryOn, setFerryOn] = useState<string | null>(null);
+  const wantFerry = useRef<string | null>(null);
   const [fuelType, setFuelType] = useState<FuelType | "none">("diesel");
   const [l100, setL100] = useState("6.5");
   const [tank, setTank] = useState("55");
@@ -96,6 +105,29 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
   const removeStop = (id: number) => setStops(ss => (ss.length > 2 ? ss.filter(s => s.id !== id) : ss));
   const swapEnds = () => setStops(ss => [ss[ss.length - 1], ...ss.slice(1, -1).reverse(), ss[0]]);
 
+  // Варианти с ферибот, които маршрутизаторът не избира сам (напр. Игуменица–Бари)
+  const findFerryAlts = async (places: Place[], land: RouteResult): Promise<FerryAlt[]> => {
+    if (places.length !== 2) return [];
+    const [A, B] = places, out: FerryAlt[] = [];
+    for (const line of FERRY_LINES) {
+      for (const reverse of [false, true]) {
+        const p1 = reverse ? line.b : line.a, p2 = reverse ? line.a : line.b;
+        const est = distanceKm(A.lat, A.lon, p1.lat, p1.lon) + distanceKm(p2.lat, p2.lon, B.lat, B.lon);
+        if (est * 1.3 > land.distanceKm * 0.75) continue;           // не спестява достатъчно — не питаме
+        if (land.ferries.some(f => new RegExp(line.a.nameEn, "i").test(f.name))) continue; // вече го ползва
+        try {
+          const port = (p: typeof p1) => ({ name: p.name, label: p.name, lat: p.lat, lon: p.lon });
+          const [r1, r2] = await Promise.all([fetchRoute([A, port(p1)]), fetchRoute([port(p2), B])]);
+          const leg: FerryLeg = { name: `${lang === "bg" ? p1.name : p1.nameEn} – ${lang === "bg" ? p2.name : p2.nameEn}`, minutes: line.hours * 60, lat: p1.lat, lon: p1.lon, lineId: line.id };
+          const joined = joinWithFerry(r1, r2, leg);
+          const savedKm = land.distanceKm - joined.distanceKm;
+          if (savedKm >= 150) out.push({ line, reverse, route: joined, savedKm, deltaH: joined.durationH - land.durationH });
+        } catch { /* маршрутизаторът не отговори — пропускаме варианта */ }
+      }
+    }
+    return out.sort((a, b) => b.savedKm - a.savedKm).slice(0, 2);
+  };
+
   const run = async (list: Stop[], opts: { scroll: boolean }) => {
     setError(null); setBusy(true);
     try {
@@ -108,8 +140,14 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
       }
       setStops(list.map((s, i) => (s.place ? s : { ...s, place: places[i], text: places[i].label })));
       const [r] = await Promise.all([fetchRoute(places), loadBorders()]);
-      setRoute(r);
+      setRoute(r); setLandRoute(r); setFerryOn(null); setFerryAlts([]);
       setRoutePlaces(places);
+      findFerryAlts(places, r).then(alts => {
+        setFerryAlts(alts);
+        const want = alts.find(a => ferryKey(a) === wantFerry.current);
+        if (want) { setRoute(want.route); setFerryOn(ferryKey(want)); }
+        wantFerry.current = null;
+      });
       if (opts.scroll) setTimeout(() => document.getElementById("rezultat")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "";
@@ -137,8 +175,9 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
     if (roundTrip) q.set("r", ret);
     if (roundTrip && stay) q.set("stay", "1");
     q.set("v", vehicle.kind); q.set("p", vehicle.powertrain); q.set("e", vehicle.euroClass);
+    if (ferryOn) q.set("f", ferryOn);
     window.history.replaceState(window.history.state, "", `${window.location.pathname}?${q.toString()}#rezultat`);
-  }, [routePlaces, depart, hour, roundTrip, ret, stay, vehicle]);
+  }, [routePlaces, depart, hour, roundTrip, ret, stay, vehicle, ferryOn]);
 
   // Възстановяване от адреса при отваряне / връщане назад
   useEffect(() => {
@@ -161,6 +200,7 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
       euroClass: (q.get("e") as EuroClass) || "euro6",
     });
     /* eslint-enable react-hooks/set-state-in-effect */
+    wantFerry.current = q.get("f");
     run(list, { scroll: false });
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -280,13 +320,14 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
               ))}</h2>
               <p className="muted">
                 {t.drive(Math.round(route.distanceKm), Math.floor(route.durationH), Math.round((route.durationH % 1) * 60))}
+                {route.ferries.length > 0 ? t.inclFerry : ""}
                 {roundTrip ? t.back(fmt(ret)) : ""}
               </p>
             </div>
             <div className="total">
               {result.fuel ? (
                 <>
-                  <span>{t.tripTotal}{result.partial ? t.totalPartial : ""}</span>
+                  <span>{t.tripTotal}{result.partial ? t.totalPartial : ""}{route.ferries.length ? t.ferryExtra : ""}</span>
                   <b>≈ {result.tollHighEur > 0
                     ? eurRange(result.totalEur + result.tollLowEur + result.fuel.eur, result.totalEur + result.tollHighEur + result.fuel.eur, lang)
                     : eurTotal(Math.round(result.totalEur + result.fuel.eur), lang)}</b>
@@ -326,6 +367,44 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
             return <p className="refuel">⛽ {t.refuel(nm(result.fuel!.cheapest!.iso), fp(result.fuel!.cheapest!.price), nm(result.fuel!.priciest!.iso), fp(result.fuel!.priciest!.price),
               eurTotal((result.fuel!.priciest!.price - result.fuel!.cheapest!.price) * 50, lang))}</p>;
           })()}
+          {ferryAlts.length > 0 && (
+            <div className="ferry-box">
+              <h3>⛴ {t.ferryAltH}</h3>
+              {ferryAlts.map(a => {
+                const p1 = a.reverse ? a.line.b : a.line.a, p2 = a.reverse ? a.line.a : a.line.b;
+                const on = ferryOn === ferryKey(a);
+                return (
+                  <div key={ferryKey(a)} className="ferry-alt">
+                    <div>
+                      <b>{t.ferryAlt(lang === "bg" ? p1.name : p1.nameEn, lang === "bg" ? p2.name : p2.nameEn)}</b>{" "}
+                      <span className="muted">· {t.ferryDur(a.line.hours * 60)}</span>
+                      <div className="muted small">{t.ferryAltLine(Math.round(a.route.distanceKm), Math.round(a.savedKm), t.hours(a.route.durationH),
+                        a.deltaH < 0 ? t.ferryFaster(t.hours(-a.deltaH)) : t.ferrySlower(t.hours(a.deltaH)))}</div>
+                    </div>
+                    <button type="button" className="btn ghost" onClick={() => {
+                      if (on) { setRoute(landRoute); setFerryOn(null); } else { setRoute(a.route); setFerryOn(ferryKey(a)); }
+                    }}>{on ? t.noFerry : t.useFerry}</button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          {route.ferries.length > 0 && (
+            <div className="ferry-box">
+              <h3>⛴ {t.ferriesH}</h3>
+              {route.ferries.map((f, i) => {
+                const line = FERRY_LINES.find(l => l.id === f.lineId);
+                const ops = line?.operators || FERRY_OPERATORS.find(o => o.match.test(f.name))?.operators || [];
+                return (
+                  <div key={i} className="ferry-leg">
+                    <b>{f.name || "—"}</b> <span className="muted">· {t.ferryDur(f.minutes)}</span>
+                    <div className="small muted">{t.ferryTicket} {ops.map((o, j) => <span key={o.url}>{j > 0 && ", "}<a href={o.url} target="_blank" rel="noopener">{o.label} ↗</a></span>)}</div>
+                    {line && <div className="small muted">{t.ferrySource} {line.source}</div>}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <RouteMap coords={route.coords} via={viaCoords} label={t.mapLabel} />
           <ol className="plans">
             {result.plans.map(p => <PlanCard key={p.iso} p={p} roundTrip={roundTrip} lang={lang} t={t} vehicle={vehicle} buyCtx={buyCtx} />)}
@@ -415,7 +494,7 @@ function PlanCard({ p, roundTrip, lang, t, vehicle, buyCtx }: { p: CountryPlan; 
       )}
       {p.tolls.map(x => (
         <div key={x.id} className="toll">
-          <b>{x.name}</b>: {x.priceCar != null ? money(x.priceCar, cur, lang) : "—"} {t.perPass}{roundTrip ? t.times2 : ""}
+          <b>{x.name}</b>: {x.priceCar != null ? money(x.priceCar, cur, lang) : "—"} {t.perPass}{(p.tollPasses[x.id] ?? 1) > 1 ? t.times2 : roundTrip && x.onlyFrom ? t.oneWay : ""}
           {cur !== "EUR" && x.priceCar != null ? ` ${eurApprox(p.eur(x.priceCar), lang)}` : ""}
           {x.note && <span className="muted small"> — {x.note}</span>}
           {" "}<a href={x.buyUrl} target="_blank" rel="noopener">{t.buyShort}</a>

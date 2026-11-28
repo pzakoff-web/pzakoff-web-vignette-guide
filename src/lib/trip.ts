@@ -42,6 +42,14 @@ export function sectionTollsOn(r: RouteResult, countries: Country[]): SectionTol
   return found;
 }
 
+/** Колко пъти се плаща таксата: еднопосочните (напр. само Русе → Гюргево) — само в правилната посока. */
+export function tollPasses(t: SectionToll, order: string[], trips: number): number {
+  if (!t.onlyFrom) return trips;
+  if (trips === 2) return 1;                       // отиване и връщане — минавате веднъж в платената посока
+  const a = order.indexOf(t.onlyFrom), b = t.onlyTo ? order.indexOf(t.onlyTo) : order.length;
+  return a >= 0 && a < b ? 1 : 0;                  // в една посока: само ако минавате от „from“ към „to“
+}
+
 /** Часът на тръгване + шофиране до 10 ч на ден, после нощувка до същия час на следващия ден. */
 export function dateAt(startDate: string, startHour: number, drivingSec: number, maxDriveH = 10): string {
   const h = drivingSec / 3600;
@@ -106,6 +114,7 @@ export interface CountryPlan {
   cover: Cover | null;          // най-евтината комбинация
   unknownPrice: boolean;        // има винетка, но не знаем цената за този вид МПС
   tolls: SectionToll[];
+  tollPasses: Record<string, number>;  // колко пъти се плаща всяка такса
   distance?: DistancePlan;      // ориентировъчна такса по километър
   fuel?: { liters: number; price: number | null; eur: number | null };
   eur: (amount: number) => number | null;
@@ -183,7 +192,7 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
     const myTolls = tolls.filter(t => c0?.sectionTolls?.includes(t));
     for (const t of myTolls) {
       const p = input.vehicle.kind === "moto" ? t.priceMoto ?? t.priceCar : t.priceCar;
-      const e = p == null ? null : eur(p * trips);
+      const e = p == null ? null : eur(p * tollPasses(t, order, trips));
       if (e == null) partial = true; else totalEur += e;
     }
     // такса по километър
@@ -208,7 +217,8 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
       const price = fuelPrice(iso, input.fuel.type);
       fuel = { liters, price, eur: price == null ? null : liters * price };
     }
-    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls, distance, fuel, eur };
+    const passes = Object.fromEntries(myTolls.map(t => [t.id, tollPasses(t, order, trips)]));
+    return { iso, country: c, name, km, dates, cover, unknownPrice, tolls: lTolls.filter(t => passes[t.id] > 0), tollPasses: passes, distance, fuel, eur };
   });
   let fuel: FuelSummary | undefined;
   if (input.fuel) {

@@ -54,6 +54,9 @@ export interface SectionToll {
   radiusKm?: number;
   note?: string;
   buyUrl: string;
+  /** Плаща се само при преминаване от тази държава (ISO numeric) към другата, напр. само Русе → Гюргево. */
+  onlyFrom?: string;
+  onlyTo?: string;
 }
 
 /**

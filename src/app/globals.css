@@ -249,3 +249,9 @@ input[type="checkbox"] { appearance: auto; -webkit-appearance: auto; width: 18px
 .refuel-box .price { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
 .refuel-box .save { color: var(--accent); font-weight: 500; margin: 12px 0 4px; }
 .refuel-box p.muted { margin: 4px 0 0; }
+
+/* Фериботи */
+.ferry-box { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 20px; margin: 0 0 16px; background: var(--surface); display: grid; gap: 10px; }
+.ferry-box h3 { margin: 0; font-size: 17px; font-weight: 600; }
+.ferry-alt { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ferry-leg a { color: var(--accent); }
