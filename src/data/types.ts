@@ -14,7 +14,11 @@ export interface Vehicle {
 }
 
 export type FuelType = "petrol" | "diesel" | "lpg";
-export interface FuelInput { type: FuelType; l100: number }
+export interface FuelInput {
+  type: FuelType; l100: number;
+  tank?: number;        // литри — за плана къде да се зарежда
+  startFraction?: number; // с колко гориво тръгвате (1 = пълен)
+}
 
 /**
  * Как се смята валидността. Когато официалното правило не е потвърдено,

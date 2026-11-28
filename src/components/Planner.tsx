@@ -11,6 +11,7 @@ import { addDays, iso } from "@/lib/dates";
 import { T, countryPath, eurApprox, eurRange, eurTotal, fmtDate, money, type Dict, type Lang } from "@/lib/i18n";
 import type { EuroClass, FuelType, Powertrain, Vehicle, VehicleKind } from "@/data/types";
 import { FUEL_DATE } from "@/lib/trip";
+import type { RefuelPlan } from "@/lib/refuel";
 import { buyLink, type BuyCtx } from "@/lib/buy";
 import { reminders, toIcs } from "@/lib/ics";
 import { COUNTRY_NAMES } from "@/lib/aliases";
@@ -47,6 +48,8 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
   const restored = useRef(false);
   const [fuelType, setFuelType] = useState<FuelType | "none">("diesel");
   const [l100, setL100] = useState("6.5");
+  const [tank, setTank] = useState("55");
+  const [startFrac, setStartFrac] = useState("1");
   const [plate, setPlate] = useState("");
   const [plateCountry, setPlateCountry] = useState(lang === "bg" ? "BG" : "");
   const prefsLoaded = useRef(false);
@@ -55,12 +58,15 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
     /* eslint-disable react-hooks/set-state-in-effect -- еднократно от localStorage */
     if (p.fuelType) setFuelType(p.fuelType);
     if (p.l100) setL100(String(p.l100));
+    if (p.tank) setTank(String(p.tank));
+    if (p.startFrac) setStartFrac(String(p.startFrac));
     if (p.plate) setPlate(p.plate);
     if (p.plateCountry) setPlateCountry(p.plateCountry);
     /* eslint-enable react-hooks/set-state-in-effect */
     prefsLoaded.current = true;
   }, []);
-  useEffect(() => { if (prefsLoaded.current) savePrefs({ fuelType, l100, plate, plateCountry }); }, [fuelType, l100, plate, plateCountry]);
+  useEffect(() => { if (prefsLoaded.current) savePrefs({ fuelType, l100, tank, startFrac, plate, plateCountry }); }, [fuelType, l100, tank, startFrac, plate, plateCountry]);
+  const tankN = Math.min(200, Math.max(0, parseFloat(tank.replace(",", ".")) || 0));
   const buyCtx: BuyCtx = useMemo(() => ({ plate, plateCountry }), [plate, plateCountry]);
   const l100n = Math.min(40, Math.max(1, parseFloat(l100.replace(",", ".")) || 0));
 
@@ -68,9 +74,9 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
     if (!route) return null;
     return planTrip(route, {
       vehicle, departDate: depart, departHour: hour, returnDate: roundTrip ? ret : undefined, stayDriving: roundTrip && stay, today: today(), lang,
-      fuel: fuelType === "none" || !l100n ? undefined : { type: fuelType, l100: l100n },
+      fuel: fuelType === "none" || !l100n ? undefined : { type: fuelType, l100: l100n, tank: tankN || undefined, startFraction: Number(startFrac) },
     });
-  }, [route, vehicle, depart, hour, roundTrip, ret, stay, lang, fuelType, l100n]);
+  }, [route, vehicle, depart, hour, roundTrip, ret, stay, lang, fuelType, l100n, tankN, startFrac]);
 
   const downloadReminders = () => {
     if (!result) return;
@@ -240,6 +246,16 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
           <label className="fld"><span>{t.l100}</span>
             <input inputMode="decimal" value={l100} disabled={fuelType === "none"} onChange={e => setL100(e.target.value)} />
           </label>
+          <label className="fld"><span>{t.tank}</span>
+            <input inputMode="decimal" value={tank} disabled={fuelType === "none"} onChange={e => setTank(e.target.value)} />
+          </label>
+          <label className="fld"><span>{t.startFuel}</span>
+            <select value={startFrac} disabled={fuelType === "none"} onChange={e => setStartFrac(e.target.value)}>
+              <option value="1">{t.full}</option><option value="0.75">{t.f34}</option><option value="0.5">{t.f12}</option><option value="0.25">{t.f14}</option>
+            </select>
+          </label>
+        </div>
+        <div className="row4">
           <label className="fld"><span>{t.plate}</span>
             <input value={plate} placeholder={t.platePh} autoComplete="off" onChange={e => setPlate(e.target.value)} />
           </label>
@@ -303,7 +319,8 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
             <button type="button" className="link" onClick={downloadReminders}>{t.remind}</button>
             <button type="button" className="link" onClick={() => document.querySelector(".form")?.scrollIntoView({ behavior: "smooth" })}>{t.edit}</button>
           </div>
-          {result.fuel?.cheapest && result.fuel.priciest && result.fuel.priciest.price - result.fuel.cheapest.price >= 0.03 && (() => {
+          {result.fuel?.plan && <RefuelBox plan={result.fuel.plan} plans={result.plans} lang={lang} t={t} />}
+          {!result.fuel?.plan && result.fuel?.cheapest && result.fuel.priciest && result.fuel.priciest.price - result.fuel.cheapest.price >= 0.03 && (() => {
             const nm = (iso: string) => result.plans.find(x => x.iso === iso)?.name || "";
             const fp = (n: number) => money(Math.round(n * 1000) / 1000, "EUR", lang);
             return <p className="refuel">⛽ {t.refuel(nm(result.fuel!.cheapest!.iso), fp(result.fuel!.cheapest!.price), nm(result.fuel!.priciest!.iso), fp(result.fuel!.priciest!.price),
@@ -317,6 +334,34 @@ export default function Planner({ lang = "bg" }: { lang?: Lang }) {
           {result.fuel && <p className="muted small">{t.fuelSource(fmt(FUEL_DATE))}</p>}
         </section>
       )}
+    </div>
+  );
+}
+
+function RefuelBox({ plan, plans, lang, t }: { plan: RefuelPlan; plans: CountryPlan[]; lang: Lang; t: Dict }) {
+  const nm = (iso: string) => plans.find(x => x.iso === iso)?.name || iso;
+  const flag = (iso: string) => plans.find(x => x.iso === iso)?.country?.flag || "";
+  const save = plan.naiveCost - plan.cost;
+  return (
+    <div className="refuel-box">
+      <h3>⛽ {t.refuelH}</h3>
+      {plan.stops.length === 0 ? <p className="ok">{t.refuelNone}</p> : (
+        <ol>
+          {plan.stops.map((s, i) => (
+            <li key={i}>
+              <span className="leg">{s.leg === 0 ? t.legOut : t.legBack}</span>
+              <b>{flag(s.iso)} {nm(s.iso)}</b> —{" "}
+              {!s.full && s.liters < 5 && plan.stops[i + 1]?.leg === s.leg
+                ? <span>{t.refuelJust(Math.max(1, Math.round(s.liters)), nm(plan.stops[i + 1].iso))}</span>
+                : <>{t.refuelStop(Math.round(s.liters), s.full)}{" "}<span className="muted">{s.nextIso ? t.beforeBorder(nm(s.nextIso)) : t.atKm(Math.round(s.km))}</span></>}
+              <span className="price">{s.price != null ? `${money(Math.round(s.price * 1000) / 1000, "EUR", lang)}/${lang === "bg" ? "л" : "l"}` : "?"}</span>
+            </li>
+          ))}
+        </ol>
+      )}
+      {save >= 1 && <p className="save">{t.refuelSave(eurTotal(save, lang))}</p>}
+      {plan.unknownPrice && <p className="muted small">{t.refuelUnknown}</p>}
+      <p className="muted small">{t.refuelHow}</p>
     </div>
   );
 }

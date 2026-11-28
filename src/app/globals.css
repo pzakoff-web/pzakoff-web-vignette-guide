@@ -239,3 +239,13 @@ input[type="checkbox"] { appearance: auto; -webkit-appearance: auto; width: 18px
 .refuel { font-size: 14.5px; color: var(--ink-2); border-left: 2px solid var(--accent); padding: 4px 0 4px 14px; margin: 0 0 16px; }
 .fuel-line { margin: 0; }
 .row-buy { flex-basis: 100%; color: var(--accent); }
+
+/* План за зареждане */
+.refuel-box { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 20px; margin: 0 0 18px; background: var(--surface); }
+.refuel-box h3 { margin: 0 0 10px; font-size: 17px; font-weight: 600; }
+.refuel-box ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.refuel-box li { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; font-size: 15px; }
+.refuel-box .leg { font-size: 12px; color: var(--muted); border: 1px solid var(--line-2); border-radius: 999px; padding: 1px 8px; }
+.refuel-box .price { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+.refuel-box .save { color: var(--accent); font-weight: 500; margin: 12px 0 4px; }
+.refuel-box p.muted { margin: 4px 0 0; }

@@ -6,6 +6,7 @@ import type { Country, SectionToll, Vehicle } from "@/data/types";
 import rates from "@/data/rates.json";
 import fuelData from "@/data/fuel.json";
 import type { FuelInput } from "@/data/types";
+import { planRefuel, type PathPoint, type RefuelPlan } from "./refuel";
 import { cheapestCover, type Cover } from "./cover";
 import { countryAt, distanceKm } from "./geo";
 import { addDays, range } from "./dates";
@@ -116,7 +117,26 @@ export function toEur(amount: number, currency: string): number | null {
   return r ? amount / r : null;
 }
 
-export interface FuelSummary { eur: number; liters: number; missing: string[]; cheapest?: { iso: string; price: number }; priciest?: { iso: string; price: number } }
+export interface FuelSummary { eur: number; liters: number; missing: string[]; cheapest?: { iso: string; price: number }; priciest?: { iso: string; price: number }; plan?: RefuelPlan }
+
+/** Точки на всеки ~2 km с държавата; при връщане — същият път наобратно (продължаваме километрите). */
+export function pathPoints(r: RouteResult, roundTrip: boolean): PathPoint[] {
+  const out: PathPoint[] = [];
+  let lastKm = -Infinity, hint: string | null = null;
+  for (let i = 0; i < r.coords.length; i++) {
+    if (r.cumKm[i] - lastKm < 2 && i !== r.coords.length - 1) continue;
+    const [lon, lat] = r.coords[i];
+    const iso: string | null = countryAt(lon, lat, hint) || hint;
+    if (!iso) continue;
+    hint = iso; lastKm = r.cumKm[i];
+    out.push({ km: r.cumKm[i], iso, leg: 0 });
+  }
+  if (roundTrip && out.length) {
+    const total = out[out.length - 1].km;
+    for (let i = out.length - 1; i >= 0; i--) out.push({ km: total + (total - out[i].km), iso: out[i].iso, leg: 1 });
+  }
+  return out;
+}
 
 export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan[]; totalEur: number; tollLowEur: number; tollHighEur: number; partial: boolean; segments: Segment[]; fuel?: FuelSummary } {
   const segs = segmentsOf(r);
@@ -199,8 +219,15 @@ export function planTrip(r: RouteResult, input: TripInput): { plans: CountryPlan
     const eur = plans.reduce((a, p) => a + (p.fuel ? (p.fuel.eur ?? (avg != null ? p.fuel.liters * avg : 0)) : 0), 0);
     const liters = plans.reduce((a, p) => a + (p.fuel?.liters || 0), 0);
     const sorted = [...priced].sort((a, b) => a.fuel!.price! - b.fuel!.price!);
+    let plan: RefuelPlan | undefined;
+    if (input.fuel.tank && input.fuel.tank >= 10) {
+      plan = planRefuel(pathPoints(r, !!input.returnDate), iso => fuelPrice(iso, input.fuel!.type), {
+        tank: input.fuel.tank, l100: input.fuel.l100, startFuel: input.fuel.tank * (input.fuel.startFraction ?? 1),
+        reserve: Math.max(5, input.fuel.tank * 0.12),
+      });
+    }
     fuel = {
-      eur, liters, missing,
+      eur, liters, missing, plan,
       cheapest: sorted[0] && { iso: sorted[0].iso, price: sorted[0].fuel!.price! },
       priciest: sorted.length > 1 ? { iso: sorted[sorted.length - 1].iso, price: sorted[sorted.length - 1].fuel!.price! } : undefined,
     };
